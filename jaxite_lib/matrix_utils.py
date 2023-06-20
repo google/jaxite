@@ -146,11 +146,38 @@ def toeplitz_poly_mul(a: jnp.array, b: jnp.array) -> jnp.ndarray:
   return jnp.matmul(b, left_matrix.transpose())
 
 
+@jax.jit
+def wrapping_convolve(a, b):
+  """Implement a wrapping convolution using jnp.convolve.
+
+  Numpy doesn't have a wrapping option, so this requires repeating
+  the coefficients of at least one of the input arrays.
+
+  Also note that, because the "valid" mode computes a convolution only when the
+  windows fully overlap, the first and last values are the same and should
+  correspond to the very last value in the output. Hence the final slicing step.
+  """
+  conv_result = jnp.convolve(a, jnp.tile(b, 2), mode="valid")
+  return conv_result[1:]
+
+
+def negacyclic_polymul_conv(p1: jnp.array, p2: jnp.array) -> jnp.ndarray:
+  p1_preprocessed = jnp.concatenate([p1, -p1])
+  p2_preprocessed = jnp.concatenate([p2, -p2])
+  product = jnp.round(
+      wrapping_convolve(p1_preprocessed, p2_preprocessed)
+  ).astype(p1.dtype)
+  return (product[: p1.shape[0]] - product[p1.shape[0] :]) // 4
+
+
 @jax.named_call
 @jax.jit
 def poly_mul(a: jnp.array, b: jnp.array) -> jnp.ndarray:
   """Computes a poly multiplication mod (X^N + 1) where N = len(a)."""
-  return toeplitz_poly_mul(a, b)
+  if "gpu" == jax.devices()[0].platform.lower():
+    return negacyclic_polymul_conv(a, b)
+  else:
+    return toeplitz_poly_mul(a, b)
 
 
 @jax.named_call
