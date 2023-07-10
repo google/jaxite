@@ -78,10 +78,11 @@ def decompose(
   #   output = jax.ops.index_update(output, i, digit)
   #   mask >>= base_log
   # return output
-  output = jnp.repeat(x, num_levels)
+  output = jnp.repeat(x, num_levels).astype(jnp.uint32)
   masks = mask >> (jnp.arange(num_levels).astype(jnp.uint32) * base_log)
   return (output & masks) >> (
-      total_bit_length - (1 + jnp.arange(num_levels)) * base_log
+      total_bit_length
+      - (1 + jnp.arange(num_levels).astype(jnp.uint32)) * base_log
   )
 
 

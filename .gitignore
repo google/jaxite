@@ -1,0 +1,4 @@
+bazel-bin
+bazel-jaxite
+bazel-out
+bazel-testlogs
