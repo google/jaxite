@@ -5,7 +5,7 @@ from hypothesis import strategies
 import jax.numpy as jnp
 from jaxite.jaxite_lib import decomposition
 import numpy as np
-from absl.testing import absltest
+from absl.testing import absltest  # fmt: skip
 
 NUM_BITS = 32
 BASE_LOG = 8
@@ -133,6 +133,7 @@ class DecomposeTest(absltest.TestCase):
       strategies.floats(min_value=0.01, max_value=0.5),
       strategies.floats(min_value=0.01, max_value=0.5),
   )
+  @hypothesis.example(0.5, 0.5)
   def test_gadget_inverse_dot_gadget(self, x: float, y: float):
     params = decomposition.DecompositionParameters(
         decomposition_log_base=BASE_LOG, decomposition_level_count=4
