@@ -113,7 +113,7 @@ def encrypt(
 ) -> RgswCiphertext:
   """Create an RGSW ciphertext."""
   k = num_blocks = sk.key.rlwe_dimension
-  levels = decomposition_params.decomposition_level_count
+  levels = decomposition_params.level_count
   rlwe_sk = sk.to_rlwe_secret_key()
 
   # Because of the way the vmaps are set up to map individual rows to each call
@@ -169,8 +169,8 @@ def jit_encrypt(
     modulus_degree: int,
 ) -> jnp.ndarray:
   """Create an RGSW ciphertext."""
-  levels = decomposition_params.decomposition_level_count
-  log_base = decomposition_params.decomposition_log_base
+  levels = decomposition_params.level_count
+  log_base = decomposition_params.log_base
   levels_range = jnp.arange(1, levels + 1, dtype=jnp.uint32)
   block_range = jnp.arange(num_blocks + 1, dtype=jnp.uint32)
   zero_to_encrypt = jnp.array([0], dtype=jnp.uint32)
@@ -292,7 +292,7 @@ def decrypt(
   """
   k = sk.key.rlwe_dimension
   rlwe_sk = sk.to_rlwe_secret_key()
-  log_base = decomposition_params.decomposition_log_base
+  log_base = decomposition_params.log_base
   omega = rlwe_sk.log_coefficient_modulus
 
   # this will fail if there is no such entry, which is necessary or else the
@@ -305,7 +305,7 @@ def decrypt(
         f'constant term, got: {rlwe_sk}'
     ) from None
 
-  row_index = decomposition_params.decomposition_level_count * sk_index
+  row_index = decomposition_params.level_count * sk_index
   ciphertext_row = ciphertext.message[row_index]
 
   # b = sum{i=0}^k s_i * a_i + e (since it was an RLWE encryption of 0)

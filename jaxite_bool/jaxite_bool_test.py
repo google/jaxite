@@ -171,7 +171,7 @@ class BoolBasicOperationsTest(parameterized.TestCase):
     modified_boolean_params = self.boolean_params
     modified_boolean_params._ks_decomp_params = (
         decomposition.DecompositionParameters(
-            decomposition_log_base=decomp_log_base, decomposition_level_count=l
+            log_base=decomp_log_base, level_count=l
         )
     )
     # pylint: enable=protected-access
@@ -213,7 +213,7 @@ class BoolBasicOperationsTest(parameterized.TestCase):
     modified_boolean_params = self.boolean_params
     modified_boolean_params._bs_decomp_params = (
         decomposition.DecompositionParameters(
-            decomposition_log_base=decomp_log_base, decomposition_level_count=l
+            log_base=decomp_log_base, level_count=l
         )
     )
     # pylint: enable=protected-access

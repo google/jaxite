@@ -47,7 +47,7 @@ def gen_key(
     out_key: lwe.LweSecretKey,
 ) -> LweKeySwitchingKey:
   """Generate an LWE key switching key."""
-  num_levels = decomposition_params.decomposition_level_count
+  num_levels = decomposition_params.level_count
   n = in_key.lwe_dimension
   lwe_size = out_key.lwe_dimension + 1
 
@@ -80,7 +80,7 @@ def gen_key(
     """Decompose one bit of the input key, then encrypt each term."""
     powers_of_b_pts = decomposition.recomposition_summands(
         in_key_bit,
-        base_log=decomposition_params.decomposition_log_base,
+        base_log=decomposition_params.log_base,
         num_levels=num_levels,
     )
     return vmap_lwe_encrypt(
@@ -100,7 +100,7 @@ def gen_key(
   return LweKeySwitchingKey(
       modulus=jnp.uint32(out_key.modulus),
       lwe_dimension=out_key.lwe_dimension,
-      decomposition_log_base=decomposition_params.decomposition_log_base,
+      decomposition_log_base=decomposition_params.log_base,
       decomposition_level_count=num_levels,
       lwe_size=lwe_size,
       key_data=key_data,
