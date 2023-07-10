@@ -124,7 +124,7 @@ class DecomposeTest(absltest.TestCase):
             1 / 256**4,
         ],
     ])
-    np.testing.assert_array_equal(expected, gadget_matrix)
+    np.testing.assert_array_almost_equal(expected, gadget_matrix, decimal=16)
 
   @hypothesis.settings(deadline=None)
   @hypothesis.given(

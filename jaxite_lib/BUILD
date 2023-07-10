@@ -1,7 +1,7 @@
 # The base Jaxite library
 
 load("@rules_python//python:defs.bzl", "py_library")
-load("@jaxite//bazel:test_oss.bzl", "cpu_gpu_tpu_test", "cpu_tpu_test")
+load("@jaxite//bazel:test_oss.bzl", "cpu_gpu_tpu_test")
 
 package(
     default_applicable_licenses = ["@jaxite//:license"],
@@ -64,8 +64,7 @@ py_library(
     ],
 )
 
-# TODO(b/245554747): fix for GPU
-cpu_tpu_test(
+cpu_gpu_tpu_test(
     name = "decomposition_test",
     size = "small",
     timeout = "moderate",
