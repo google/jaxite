@@ -19,7 +19,7 @@ class RgswTest(parameterized.TestCase):
     self.dim = 10
     self.plaintext_modulus = 2**32
     self.decomposition_params = decomposition.DecompositionParameters(
-        decomposition_log_base=4, decomposition_level_count=4
+        log_base=4, level_count=4
     )
     self.polynomial_modulus_degree = 8
     self.rlwe_dimension = 2
@@ -72,7 +72,7 @@ class RgswTest(parameterized.TestCase):
     self.assertLen(
         ciphertext.message,
         (self.rlwe_dimension + 1)
-        * self.decomposition_params.decomposition_level_count,
+        * self.decomposition_params.level_count,
     )
     for message in ciphertext.message:
       self.assertLen(message, (self.rlwe_dimension + 1))
@@ -110,8 +110,8 @@ class RgswTest(parameterized.TestCase):
         decomposition_params=self.decomposition_params,
         prg=self.noise_free_rng,
     )
-    levels = self.decomposition_params.decomposition_level_count
-    log_base = self.decomposition_params.decomposition_log_base
+    levels = self.decomposition_params.level_count
+    log_base = self.decomposition_params.log_base
     k = self.default_key.key.rlwe_dimension
 
     for level in range(1, levels + 1):

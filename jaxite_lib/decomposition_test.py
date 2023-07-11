@@ -92,7 +92,7 @@ class DecomposeTest(absltest.TestCase):
 
   def test_gadget_matrix(self):
     params = decomposition.DecompositionParameters(
-        decomposition_log_base=2, decomposition_level_count=3
+        log_base=2, level_count=3
     )
     gadget_matrix = decomposition.gadget_matrix(
         decomp_params=params, vector_length=2, total_bit_length=NUM_BITS
@@ -106,7 +106,7 @@ class DecomposeTest(absltest.TestCase):
 
   def test_gadget_matrix_32_bit(self):
     params = decomposition.DecompositionParameters(
-        decomposition_log_base=BASE_LOG, decomposition_level_count=4
+        log_base=BASE_LOG, level_count=4
     )
     gadget_matrix = decomposition.gadget_matrix(
         decomp_params=params, vector_length=2, total_bit_length=NUM_BITS
@@ -136,7 +136,7 @@ class DecomposeTest(absltest.TestCase):
   @hypothesis.example(0.5, 0.5)
   def test_gadget_inverse_dot_gadget(self, x: float, y: float):
     params = decomposition.DecompositionParameters(
-        decomposition_log_base=BASE_LOG, decomposition_level_count=4
+        log_base=BASE_LOG, level_count=4
     )
     gadget_matrix = decomposition.gadget_matrix(
         decomp_params=params, vector_length=2, total_bit_length=NUM_BITS
@@ -167,8 +167,8 @@ class DecomposeTest(absltest.TestCase):
 
   def test_decompose_rlwe_ciphertext_vmap_compatibility(self):
     decomposition_params = decomposition.DecompositionParameters(
-        decomposition_log_base=4,
-        decomposition_level_count=8,
+        log_base=4,
+        level_count=8,
         total_bit_length=32,
     )
     rlwe_ct = jnp.array(

@@ -109,11 +109,11 @@ SCHEME_PARAMS_128_BIT_SECURITY = parameters.SchemeParameters(
 # in order to avoid loss of precision:
 # (2^decomposition_log_base)^decomposition_level_count == plaintext_modulus.
 BSK_DECOMP_PARAMS_128_BIT_SECURITY = decomposition.DecompositionParameters(
-    decomposition_log_base=4, decomposition_level_count=6
+    log_base=4, level_count=6
 )
 # These parameters give an approximate decomposition. See go/keyswitch-error.
 KSK_DECOMP_PARAMS_128_BIT_SECURITY = decomposition.DecompositionParameters(
-    decomposition_log_base=4, decomposition_level_count=5
+    log_base=4, level_count=5
 )
 
 
@@ -141,8 +141,6 @@ TEST_SCHEME_PARAMS = parameters.SchemeParameters(
 # Note: The following condition needs to be met for decomposition parameters:
 # (2^decomposition_log_base)^decomposition_level_count == plaintext_modulus.
 TEST_BSK_DECOMP_PARAMS = decomposition.DecompositionParameters(
-    decomposition_log_base=4, decomposition_level_count=8
+    log_base=4, level_count=8
 )
-TEST_KSK_DECOMP_PARAMS = decomposition.DecompositionParameters(
-    decomposition_log_base=4, decomposition_level_count=8
-)
+TEST_KSK_DECOMP_PARAMS = TEST_BSK_DECOMP_PARAMS
