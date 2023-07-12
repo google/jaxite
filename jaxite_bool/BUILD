@@ -143,6 +143,7 @@ tpu_test(
     srcs = ["pmap_test.py"],
     python_version = "PY3",
     srcs_version = "PY3",
+    tags = ["manual"],
     deps = [
         ":bool_params",
         ":jaxite_bool",

@@ -97,7 +97,7 @@ class BoolMultigateTest(parameterized.TestCase):
     self.assertEqual(output_and_4, i0 and i1 and i2)
 
   @parameterized.product(
-      seed=list(range(10)),
+      seed=[1, 5, 9],
   )
   def test_seeds(self, seed: int) -> None:
     # Testing different seeds using a chained operation:

@@ -1,0 +1,26 @@
+name: Build and Test
+permissions: read-all
+on:
+  schedule:
+    # Every day at 1 AM
+    - cron: '0 1 * * *'
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # pin@v3
+
+      - name: "Run `bazel build`"
+        run: |
+          bazel build //...
+
+      - name: "Run `bazel test`"
+        run: |
+          bazel test \
+            --test_output=errors \
+            --test_size_filters=medium,large \
+            --test_timeout=3600 \
+            --jobs=1 \
+            --experimental_ui_max_stdouterr_bytes=10485760 \
+            //...

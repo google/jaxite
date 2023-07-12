@@ -29,4 +29,10 @@ jobs:
 
       - name: "Run `bazel test`"
         run: |
-          bazel test //...
+          bazel test \
+            --test_output=errors \
+            --test_size_filters=small \
+            --test_timeout=1800 \
+            --jobs=2 \
+            --experimental_ui_max_stdouterr_bytes=10485760 \
+            //...
