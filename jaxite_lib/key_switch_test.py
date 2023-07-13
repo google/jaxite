@@ -22,7 +22,7 @@ class KeySwitchTest(parameterized.TestCase):
     self.dim = 5
     self.plaintext_modulus = 2**32
     self.decomposition_params = decomposition.DecompositionParameters(
-        decomposition_log_base=8, decomposition_level_count=4
+        log_base=8, level_count=4
     )
     self.polynomial_modulus_degree = 4
     self.rlwe_dimension = 2
@@ -49,7 +49,7 @@ class KeySwitchTest(parameterized.TestCase):
     self.assertEqual(
         (
             in_key.lwe_dimension,
-            self.decomposition_params.decomposition_level_count,
+            self.decomposition_params.level_count,
             out_key.lwe_dimension + 1,
         ),
         ksk.key_data.shape,
@@ -115,8 +115,8 @@ class KeySwitchTest(parameterized.TestCase):
         polynomial_modulus_degree=1024,
     )
     ksk_decomp_params = decomposition.DecompositionParameters(
-        decomposition_log_base=4,
-        decomposition_level_count=8,
+        log_base=4,
+        level_count=8,
     )
 
     plaintext = encoding.encode(message, encoding_params)

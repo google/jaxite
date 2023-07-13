@@ -32,7 +32,7 @@ class BlindRotateTest(parameterized.TestCase):
     # those parameter settings that are "complete" in that there is no
     # approxmiation to the decomposition.
     self.decomposition_params = decomposition.DecompositionParameters(
-        decomposition_log_base=4, decomposition_level_count=8
+        log_base=4, level_count=8
     )
     self.polynomial_modulus_degree = 4
     self.rlwe_dimension = 2

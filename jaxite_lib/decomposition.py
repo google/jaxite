@@ -15,14 +15,14 @@ GadgetDecomp = NewType("GadgetDecomp", jnp.ndarray)
 class DecompositionParameters:
   """The parameters to a bit decomposition subroutine.
 
-  Let B = 2^decomposition_log_base. A bit decomposition computes the first
-  decomposition_level_count digits of the base-B representation of a number,
+  Let B = 2^log_base. A bit decomposition computes the first
+  level_count digits of the base-B representation of a number,
   which also clears lower-order bits. In the context of TFHE, those lower-order
   bits contain noise and can be safely ignored.
   """
 
-  decomposition_log_base: int
-  decomposition_level_count: int
+  log_base: int
+  level_count: int
   total_bit_length: int = 32
 
 
@@ -248,8 +248,8 @@ def decompose_rlwe_ciphertext(
     and then A[(polynomial, level), j] is the level'th digit in the signed
     base-L decomposition of coefficient j of the polynomial.
   """
-  log_base = decomposition_params.decomposition_log_base
-  level_count = decomposition_params.decomposition_level_count
+  log_base = decomposition_params.log_base
+  level_count = decomposition_params.level_count
 
   decomposed_polys = signed_decomposition_polynomial_list(
       rlwe_ct, log_base, level_count, decomposition_params.total_bit_length
@@ -299,14 +299,14 @@ def gadget_matrix(
     decomp_params: The DecompositionParameters to use.
     vector_length: The length of the output vector when the gadget matrix is
       applied to it. If this is M, then the gadget matrix will have shape (M,
-      (M*decomp_params.decomposition_level_count)).
+      (M*decomp_params.level_count)).
     total_bit_length: The total bit size of the input integers.
 
   Returns:
     The gadget matrix, in T_q^{(n+1) x (n+1)L}
   """
-  base = 2**decomp_params.decomposition_log_base
-  levels = decomp_params.decomposition_level_count
+  base = 2**decomp_params.log_base
+  levels = decomp_params.level_count
 
   if 2**total_bit_length % (base**levels) != 0:
     raise ValueError(
@@ -336,9 +336,9 @@ def inverse_gadget(
   Returns:
     A flattened vector, the output of the inverse gadget operation.
   """
-  log_base = decomp_params.decomposition_log_base
+  log_base = decomp_params.log_base
   base = 2**log_base
-  levels = decomp_params.decomposition_level_count
+  levels = decomp_params.level_count
 
   scaled = vector * jnp.float32(base) ** levels
   scaled_rounded = jnp.rint(scaled).astype(jnp.uint32)

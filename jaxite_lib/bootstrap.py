@@ -55,7 +55,7 @@ def gen_bootstrapping_key(
   k = num_blocks = rgsw_sk.key.rlwe_dimension
   rlwe_sk = rgsw_sk.to_rlwe_secret_key()
   lwe_sk_dim = lwe_sk.key_data.shape[0]
-  levels = decomposition_params.decomposition_level_count
+  levels = decomposition_params.level_count
   if lwe_sk_dim % 2 != 0:
     raise ValueError(
         "BMMP bootstrap loop-unrolling technique "
@@ -227,8 +227,8 @@ def jit_bootstrap(
   key_switched = key_switch.jit_switch_key(
       ksk_key_data,
       extracted,
-      ks_decomposition_params.decomposition_level_count,
-      ks_decomposition_params.decomposition_log_base,
+      ks_decomposition_params.level_count,
+      ks_decomposition_params.log_base,
   )
 
   return key_switched
@@ -301,8 +301,8 @@ def bootstrap(
   key_switched = key_switch.jit_switch_key(
       ksk.key_data,
       extracted,
-      ks_decomposition_params.decomposition_level_count,
-      ks_decomposition_params.decomposition_log_base,
+      ks_decomposition_params.level_count,
+      ks_decomposition_params.log_base,
   )
   if callback:
     callback("key_switched", key_switched, **kwargs)
