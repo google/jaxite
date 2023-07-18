@@ -486,3 +486,62 @@ def pmap_lut3(
       sks,
       params,
   )
+
+
+@functools.partial(
+    jax.pmap,
+    in_axes=(0, 0, 0, None, None),
+    out_axes=0,
+    static_broadcasted_argnums=(3, 4),
+)
+def pmap_lut2_impl(
+    a: types.LweCiphertext,
+    b: types.LweCiphertext,
+    truth_table: jnp.ndarray,
+    server_key_set: ServerKeySet,
+    params: Parameters,
+) -> types.LweCiphertext:
+  """A version of lut3 suitable for pmap."""
+  return bootstrap.jit_bootstrap(
+      2 * b + a,
+      truth_table,
+      server_key_set.bsk.encrypted_lwe_sk_bits,
+      server_key_set.ksk.key_data,
+      params.ks_decomp_params,
+      params.bs_decomp_params,
+      params.scheme_params,
+  )
+
+
+Lut2Args = tuple[jnp.array, jnp.array, jnp.array]
+
+
+def pmap_lut2(
+    inputs: list[Lut2Args], sks: ServerKeySet, params: Parameters
+) -> jnp.ndarray:
+  """Apply lut2 in parallel across all inputs.
+
+  Args:
+    inputs: A list of tuples (a, b, truth_table), the corresponding arguments
+      to the `jaxite.lut2` function with the same semantics
+    sks: the FHE server key set
+    params: the jaxite_bool parameters
+
+  Returns:
+    The LWE ciphertexts encrypting the output of the 2-LUT,
+    organized as rows of a jax array.
+  """
+  a_inputs = jnp.array([v[0] for v in inputs])
+  b_inputs = jnp.array([v[1] for v in inputs])
+
+  truth_table_cts = jnp.array(
+      [params.lut_poly(num_inputs=2, truth_table=v[2]).message for v in inputs]
+  )
+
+  return pmap_lut2_impl(
+      a_inputs,
+      b_inputs,
+      truth_table_cts,
+      sks,
+      params,
+  )

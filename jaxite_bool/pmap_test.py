@@ -53,6 +53,28 @@ class PmapTest(parameterized.TestCase):
     expected = [False, True]
     self.assertEqual(expected, output_cleartexts)
 
+  def test_pmap_lut2(self) -> None:
+    ct_true = jaxite_bool.encrypt(True, self.client_key_set, self.lwe_rng)
+    ct_false = jaxite_bool.encrypt(False, self.client_key_set, self.lwe_rng)
+
+    # For input (a, b, tt),
+    # each output is constructed as (tt >> 0b{a, b}) & 1
+    inputs = [
+        (ct_true, ct_false, 13),  # false
+        (ct_true, ct_true, 13),  # true
+        # Forge only gives tests 2 cores, so we can't test parallelism beyond
+        # two operations at once.
+    ]
+    outputs = jaxite_bool.pmap_lut2(
+        inputs, self.server_key_set, self.boolean_params
+    )
+
+    output_cleartexts = [
+        jaxite_bool.decrypt(value, self.client_key_set) for value in outputs
+    ]
+    expected = [False, True]
+    self.assertEqual(expected, output_cleartexts)
+
 
 if __name__ == '__main__':
   absltest.main()
