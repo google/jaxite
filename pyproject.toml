@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jaxite"
+version = "0.0.1"
+description = 'A Homomorphic Encryption implementation (CGGI) written in JAX'
+readme = "README.md"
+requires-python = ">=3.7"
+license = "MIT"
+keywords = []
+authors = [
+  { name = "Asra Ali" },
+  { name = "Cathie Yun" },
+  { name = "Jeremy Kun" },
+  { name = "Shruthi Gorantala" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  "jax==0.4.13",
+  "jaxlib==0.4.13",
+  "numpy==1.25.1",
+]
+
+[project.urls]
+Documentation = "https://github.com/google/jaxite"
+Issues = "https://github.com/google/jaxite/issues"
+Source = "https://github.com/google/jaxite"
+
+
+[tool.hatch.build]
+include = [
+  "**/*.py",
+]
+exclude = [
+  "**/*_test.py",
+  "**/test_util.py",
+]

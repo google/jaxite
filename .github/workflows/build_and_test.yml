@@ -7,9 +7,13 @@ on:
   pull_request:
     branches:
       - main
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on:
+      labels: ubuntu-20.04-16core
     steps:
       - name: Check out repository code
         uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # pin@v3
@@ -20,8 +24,6 @@ jobs:
           path: |
             ~/.cache/bazel
           key: ${{ runner.os }}-bazel-${{ hashFiles('.bazelversion', '.bazelrc', 'WORKSPACE', 'requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-bazel-
 
       - name: "Run `bazel build`"
         run: |
@@ -33,6 +35,5 @@ jobs:
             --test_output=errors \
             --test_size_filters=small \
             --test_timeout=1800 \
-            --jobs=2 \
             --experimental_ui_max_stdouterr_bytes=10485760 \
             //...
