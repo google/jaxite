@@ -38,12 +38,11 @@ Documentation = "https://github.com/google/jaxite"
 Issues = "https://github.com/google/jaxite/issues"
 Source = "https://github.com/google/jaxite"
 
-
 [tool.hatch.build]
 include = [
-  "**/*.py",
+  "jaxite/**/*.py",
 ]
 exclude = [
-  "**/*_test.py",
-  "**/test_util.py",
+  "jaxite/**/*_test.py",
+  "jaxite/**/test_util.py",
 ]
