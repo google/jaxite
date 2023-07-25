@@ -60,7 +60,7 @@ load("@rules_python//python:pip.bzl", "pip_parse")
 pip_parse(
     name = "jaxite_deps",
     python_interpreter_target = interpreter,
-    requirements_lock = "//:requirements.txt",
+    requirements_lock = "//:requirements_dev.txt",
 )
 
 load("@jaxite_deps//:requirements.bzl", "install_deps")

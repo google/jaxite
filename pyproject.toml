@@ -28,9 +28,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "jax==0.4.13",
-  "jaxlib==0.4.13",
-  "numpy==1.25.1",
+  "jax~=0.4.13",
+  "jaxlib~=0.4.13",
 ]
 
 [project.urls]
