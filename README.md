@@ -11,6 +11,12 @@ compiler](https://github.com/google/fully-homomorphic-encryption).
 
 ### `jaxite_bool`
 
+Install Jaxite
+
+```shell
+pip install jaxite
+```
+
 A program that shows how to use the `jaxite_bool` boolean gate API.
 
 ```python
@@ -18,6 +24,8 @@ from jaxite import jaxite_bool
 
 bool_params = jaxite_bool.bool_params
 
+# Note: In real applications, a cryptographically secure seed needs to be
+# used.
 lwe_rng = bool_params.get_lwe_rng_for_128_bit_security(seed=1)
 rlwe_rng = bool_params.get_rlwe_rng_for_128_bit_security(seed=1)
 params = bool_params.get_params_for_128_bit_security()
@@ -31,7 +39,7 @@ sks = jaxite_bool.ServerKeySet(
     params,
     lwe_rng=lwe_rng,
     rlwe_rng=rlwe_rng,
-    bootstrap_callback=callback,
+    bootstrap_callback=None,
 )
 
 ct_true = jaxite_bool.encrypt(True, cks, lwe_rng)
