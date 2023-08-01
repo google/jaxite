@@ -20,7 +20,7 @@ pip install jaxite
 A program that shows how to use the `jaxite_bool` boolean gate API.
 
 ```python
-from jaxite import jaxite_bool
+from jaxite.jaxite_bool import jaxite_bool
 
 bool_params = jaxite_bool.bool_params
 
