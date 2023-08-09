@@ -60,13 +60,13 @@ def x_power_n_minus_1(n: jnp.uint32, poly_mod_deg: jnp.uint32) -> jnp.ndarray:
 
 
 @jax.jit
-def int32_to_int8_arr(arr: jnp.array) -> jnp.array:
+def int32_to_int8_arr(arr: jnp.ndarray) -> jnp.ndarray:
   """Decompose an int32 matrix into u8s."""
   return jax.lax.bitcast_convert_type(arr, new_dtype=jnp.uint8)
 
 
 @jax.jit
-def i32_as_u8_matmul(lhs: jnp.array, rhs: jnp.array) -> jnp.array:
+def i32_as_u8_matmul(lhs: jnp.ndarray, rhs: jnp.ndarray) -> jnp.ndarray:
   """Multiply an (n,) by an (n, k) i32 matrix using only i8 ops."""
   if lhs.ndim != 1 or rhs.ndim != 2:
     raise ValueError(
@@ -139,7 +139,7 @@ def toeplitz(x: jnp.ndarray) -> jnp.ndarray:
 
 @jax.named_call
 @jax.jit
-def toeplitz_poly_mul(a: jnp.array, b: jnp.array) -> jnp.ndarray:
+def toeplitz_poly_mul(a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
   """Computes a poly multiplication mod (X^N + 1) where N = len(a)."""
   multiplier = _generate_sign_matrix(len(a))
   left_matrix = multiplier * toeplitz(a).transpose()
@@ -148,14 +148,16 @@ def toeplitz_poly_mul(a: jnp.array, b: jnp.array) -> jnp.ndarray:
 
 @jax.named_call
 @jax.jit
-def poly_mul(a: jnp.array, b: jnp.array) -> jnp.ndarray:
+def poly_mul(a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
   """Computes a poly multiplication mod (X^N + 1) where N = len(a)."""
   return toeplitz_poly_mul(a, b)
 
 
 @jax.named_call
 @functools.partial(jax.jit, static_argnames="log_modulus")
-def monomial_mul(poly: jnp.array, degree: int, log_modulus: int) -> jnp.ndarray:
+def monomial_mul(
+    poly: jnp.ndarray, degree: int, log_modulus: int
+) -> jnp.ndarray:
   """Computes `poly * X^degree mod (X^N + 1)` where N = len(poly).
 
   Args:

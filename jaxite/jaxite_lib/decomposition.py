@@ -322,7 +322,7 @@ def gadget_matrix(
 
 
 def inverse_gadget(
-    vector: jnp.array,
+    vector: jnp.ndarray,
     decomp_params: DecompositionParameters,
     total_bit_length: int = 32,
 ) -> GadgetDecomp:
