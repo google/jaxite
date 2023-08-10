@@ -114,9 +114,22 @@ project](https://github.com/google/fully-homomorphic-encryption), see
 [transpiler/jaxite](https://github.com/google/fully-homomorphic-encryption/tree/main/transpiler/jaxite)
 in that project for instructions.
 
-## Contributing
+## Contributors
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for details.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for details on how to contribute. The following are contributors to Jaxite project (sorted by last name):
+
+-   [Asra Ali](https://github.com/asraa)
+-   [Eric Astor](https://github.com/ericastor)
+-   [Bryant Gipson](https://www.linkedin.com/in/bryant-gipson-33478419)
+-   [Shruthi Gorantala](https://github.com/code-perspective)
+-   [Miguel Guevara](https://www.linkedin.com/in/miguel-guevara-8a5a332a)
+-   [Jeremy Kun](https://github.com/j2kun)
+-   [William Lam](https://www.linkedin.com/in/william-m-lam)
+-   [Rafael Misoczki](https://www.linkedin.com/in/rafael-misoczki-phd-24b33013)
+-   [Rob Springer](https://github.com/RobSpringer)
+-   [Jonathan Takeshita](https://sites.nd.edu/jonathan-takeshita/)
+-   [Cameron Tew](https://github.com/cam2337)
+-   [Cathie Yun](https://github.com/cathieyun)
 
 ## License
 
