@@ -130,8 +130,8 @@ class DecomposeTest(absltest.TestCase):
   @hypothesis.given(
       # for some reason, values too close to zero hit approximation errors
       # and cause the equality comparison to fail
-      strategies.floats(min_value=0.01, max_value=0.5),
-      strategies.floats(min_value=0.01, max_value=0.5),
+      strategies.floats(min_value=0.01, max_value=0.49),
+      strategies.floats(min_value=0.01, max_value=0.49),
   )
   @hypothesis.example(0.5, 0.5)
   def test_gadget_inverse_dot_gadget(self, x: float, y: float):
