@@ -452,7 +452,7 @@ def pmap_lut3_impl(
   )
 
 
-Lut3Args = tuple[jnp.array, jnp.array, jnp.array, jnp.array]
+Lut3Args = tuple[Any, Any, Any, Any]
 
 
 def pmap_lut3(
@@ -513,7 +513,7 @@ def pmap_lut2_impl(
   )
 
 
-Lut2Args = tuple[jnp.array, jnp.array, jnp.array]
+Lut2Args = tuple[Any, Any, Any]
 
 
 def pmap_lut2(
