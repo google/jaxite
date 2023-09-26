@@ -80,7 +80,7 @@ def decompose(
   # return output
   output = jnp.repeat(x, num_levels).astype(jnp.uint32)
   masks = mask >> (jnp.arange(num_levels).astype(jnp.uint32) * base_log)
-  return (output & masks) >> (
+  return (output & masks) >> (  # pytype: disable=bad-return-type  # jnp-type
       total_bit_length
       - (1 + jnp.arange(num_levels).astype(jnp.uint32)) * base_log
   )
@@ -318,7 +318,7 @@ def gadget_matrix(
   powers = (jnp.float32(1 / base) ** jnp.arange(1, levels + 1)).reshape(
       (levels, 1)
   )
-  return jnp.kron(jnp.identity((vector_length)), powers).T
+  return jnp.kron(jnp.identity((vector_length)), powers).T  # pytype: disable=bad-return-type  # jnp-type
 
 
 def inverse_gadget(
@@ -342,6 +342,6 @@ def inverse_gadget(
 
   scaled = vector * jnp.float32(base) ** levels
   scaled_rounded = jnp.rint(scaled).astype(jnp.uint32)
-  return jnp.array(
+  return jnp.array(  # pytype: disable=bad-return-type  # jnp-type
       [decompose(x, log_base, levels, total_bit_length) for x in scaled_rounded]
   ).flatten()
