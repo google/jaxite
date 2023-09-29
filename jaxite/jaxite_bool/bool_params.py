@@ -85,7 +85,10 @@ def get_lwe_rng_for_128_bit_security(
 ) -> random_source.PseudorandomSource:
   """Returns lwe rng for 128 bit security."""
   # This parameter was selected to satisfy 128-bit security while giving
-  # efficient performance. See go/fhe-params for more details.
+  # efficient performance. While the performance measurements are for TPUs and
+  # must be kept Google-internal, the general approach is outlined in this blog
+  # post:
+  # https://jeremykun.com/2022/12/28/estimating-the-security-of-ring-learning-with-errors-rlwe/
   return random_source.PseudorandomSource(seed=seed, normal_std=2**14)
 
 
@@ -94,7 +97,10 @@ def get_rlwe_rng_for_128_bit_security(
 ) -> random_source.PseudorandomSource:
   """Returns rlwe rng for 128 bit security."""
   # This parameter was selected to satisfy 128-bit security while giving
-  # efficient performance. See go/fhe-params for more details.
+  # efficient performance. While the performance measurements are for TPUs and
+  # must be kept Google-internal, the general approach is outlined in this blog
+  # post:
+  # https://jeremykun.com/2022/12/28/estimating-the-security-of-ring-learning-with-errors-rlwe/
   return random_source.PseudorandomSource(seed=seed, normal_std=256)
 
 
