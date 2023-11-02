@@ -143,7 +143,7 @@ def toeplitz_poly_mul(a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
   """Computes a poly multiplication mod (X^N + 1) where N = len(a)."""
   multiplier = _generate_sign_matrix(len(a))
   left_matrix = multiplier * toeplitz(a).transpose()
-  return jnp.matmul(b, left_matrix.transpose())
+  return i32_as_u8_matmul(b, left_matrix.transpose())
 
 
 @jax.named_call

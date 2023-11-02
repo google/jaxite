@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 from jaxite.jaxite_lib import decomposition
 from jaxite.jaxite_lib import encoding
+from jaxite.jaxite_lib import jax_helpers
 from jaxite.jaxite_lib import matrix_utils
 from jaxite.jaxite_lib import parameters
 from jaxite.jaxite_lib import random_source
@@ -249,10 +250,15 @@ def jit_encrypt(
         out_axes=0,
     )(ai_samples, error_samples, levels_range, block, plaintext_message)
 
-  ciphertext = jax.vmap(
+  # We use batch_vmap here because on GPU, the additional use of
+  # i32_as_u8_matmul during encryption results in too much memory usage.
+  # However, note that because key generation will typically not happen on a TPU
+  # or GPU, this is mostly a mechanism to ensure we can run tests fast in CI.
+  ciphertext = jax_helpers.batch_vmap(
       encrypt_block,
       in_axes=(0, 0, 0, None),
       out_axes=0,
+      batch_size=1,
   )(ai_samples, error_samples, block_range, plaintext)
 
   return ciphertext.reshape(
