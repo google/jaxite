@@ -235,6 +235,17 @@ class MatrixUtilsTest(parameterized.TestCase):
     )
     np.testing.assert_array_equal(expected, actual)
 
+  @hypothesis.given(strategies.integers(min_value=0, max_value=10), vectors(16))
+  @hypothesis.settings(deadline=None)
+  def test_scale_by_x_power_n_minus_1(self, power, poly):
+    matrix = jnp.tile(jnp.array(list(poly)), reps=jnp.array([8, 8, 1]))
+    poly_term = matrix_utils.x_power_n_minus_1(power, poly_mod_deg=16)
+    expected = matrix_utils.poly_mul_const_matrix(poly_term, matrix)
+    actual = matrix_utils.scale_by_x_power_n_minus_1(
+        power, matrix, log_modulus=32
+    )
+    np.testing.assert_array_equal(expected, actual)
+
 
 if __name__ == '__main__':
   absltest.main()

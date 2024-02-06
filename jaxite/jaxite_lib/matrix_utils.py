@@ -233,9 +233,39 @@ poly_mul_const_matrix = jax.vmap(
     poly_mul_const_list, in_axes=(None, 0), out_axes=0
 )
 
+# Scale the elements of a matrix by a monomial.
+monomial_mul_matrix = jax.vmap(
+    monomial_mul_list, in_axes=(0, None, None), out_axes=0
+)
+
 
 def poly_dot_product(
     poly_vec1: jnp.ndarray, poly_vec2: jnp.ndarray
 ) -> jnp.ndarray:
   """Compute a dot product of two vectors of polynomials."""
   return jnp.sum(poly_mul_list(poly_vec1, poly_vec2), axis=0).astype(jnp.uint32)
+
+
+@functools.partial(jax.jit, static_argnames="log_modulus")
+def scale_by_x_power_n_minus_1(
+    power: jnp.int32, matrix: jnp.ndarray, log_modulus: int
+) -> jnp.ndarray:
+  """An optimized poly mul for scaling a matrix of polynomials by x^n - 1.
+
+  Args:
+    power: The exponent n of x^n - 1 to scale each matrix entry by
+    matrix: The matrix to be scaled.
+    log_modulus: the base-2 logarithm of the polynomial coefficient modulus.
+
+  Returns:
+    An `jnp.ndarray` of the same shape as `matrix`, containing the
+    entries of `matrix` each scaled by x^n - 1.
+  """
+  x_power_n_part = monomial_mul_matrix(matrix, power, log_modulus)
+  minus_one_part = -matrix
+  output = x_power_n_part + minus_one_part
+
+  if 0 < log_modulus < 32:
+    output = jnp.mod(output, jnp.uint32(2) ** log_modulus)
+
+  return output

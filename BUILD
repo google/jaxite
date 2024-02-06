@@ -1,8 +1,8 @@
 # An FHE cryptosystem built in JAX
 
 load("@rules_python//python:defs.bzl", "py_library")
-load("@jaxite//bazel:test_oss.bzl", "cpu_gpu_tpu_test", "gpu_tpu_test", "tpu_test")
 load("@rules_python//python:defs.bzl", "py_test")
+load("@jaxite//bazel:test_oss.bzl", "cpu_gpu_tpu_test", "gpu_tpu_test", "tpu_test")
 load("@rules_license//rules:license.bzl", "license")
 
 package(

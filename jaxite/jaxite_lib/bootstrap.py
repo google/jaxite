@@ -468,10 +468,6 @@ def jit_blind_rotate(
       log_coefficient_modulus,
   ).astype(jnp.uint32)
 
-  # rot_polynomial is an rlwe ciphertext, so the second dimension determines the
-  # degree of the polynomial
-  degree = rot_polynomial.shape[1]
-
   # Using the improved blind rotate from Bourse-Minelli-Minihold-Paillier
   # (BMMP17: https://eprint.iacr.org/2017/1114), a trick uses a larger
   # bootstrapping key to reduce the number of external products required by 1/2.
@@ -481,13 +477,16 @@ def jit_blind_rotate(
     power1 = coefficient_index[2 * j] + coefficient_index[2 * j + 1]
     power2 = coefficient_index[2 * j]
     power3 = coefficient_index[2 * j + 1]
-    poly_term1 = matrix_utils.x_power_n_minus_1(power1, poly_mod_deg=degree)
-    poly_term2 = matrix_utils.x_power_n_minus_1(power2, poly_mod_deg=degree)
-    poly_term3 = matrix_utils.x_power_n_minus_1(power3, poly_mod_deg=degree)
     return (
-        matrix_utils.poly_mul_const_matrix(poly_term1, bsk[3 * j])
-        + matrix_utils.poly_mul_const_matrix(poly_term2, bsk[3 * j + 1])
-        + matrix_utils.poly_mul_const_matrix(poly_term3, bsk[3 * j + 2])
+        matrix_utils.scale_by_x_power_n_minus_1(
+            power1, bsk[3 * j], log_modulus=log_coefficient_modulus
+        )
+        + matrix_utils.scale_by_x_power_n_minus_1(
+            power2, bsk[3 * j + 1], log_modulus=log_coefficient_modulus
+        )
+        + matrix_utils.scale_by_x_power_n_minus_1(
+            power3, bsk[3 * j + 2], log_modulus=log_coefficient_modulus
+        )
     ).astype(jnp.uint32)
 
   bmmp_factors = jax.vmap(one_bmmp_factor, in_axes=(0,), out_axes=0)(
