@@ -35,6 +35,15 @@ def tpu_test(name, **kwargs):
         deps = kwargs.get("deps", []),
     )
 
+def multichip_tpu_test(name, **kwargs):
+    """A shim that only generates CPU tests.
+
+    Args:
+      name: the name of the CPU test.
+      **kwargs: other args passed along to generated rules.
+    """
+    return tpu_test(name, **kwargs)
+
 def cpu_tpu_test(name, **kwargs):
     """A shim that only generates CPU tests.
 

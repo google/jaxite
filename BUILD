@@ -2,7 +2,7 @@
 
 load("@rules_python//python:defs.bzl", "py_library")
 load("@rules_python//python:defs.bzl", "py_test")
-load("@jaxite//bazel:test_oss.bzl", "cpu_gpu_tpu_test", "gpu_tpu_test", "tpu_test")
+load("@jaxite//bazel:test_oss.bzl", "cpu_gpu_tpu_test", "gpu_tpu_test", "multichip_tpu_test")
 load("@rules_license//rules:license.bzl", "license")
 
 package(
@@ -288,7 +288,7 @@ gpu_tpu_test(
     ],
 )
 
-tpu_test(
+multichip_tpu_test(
     name = "pmap_test",
     size = "large",
     srcs = ["jaxite/jaxite_bool/pmap_test.py"],
