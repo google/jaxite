@@ -5,6 +5,7 @@ from typing import Any, Callable, Optional
 
 import jax
 import jax.numpy as jnp
+from jaxite.jaxite_lib import bmmp
 from jaxite.jaxite_lib import decomposition
 from jaxite.jaxite_lib import key_switch
 from jaxite.jaxite_lib import lwe
@@ -472,25 +473,8 @@ def jit_blind_rotate(
   # (BMMP17: https://eprint.iacr.org/2017/1114), a trick uses a larger
   # bootstrapping key to reduce the number of external products required by 1/2.
   num_loop_terms = (coefficient_index.shape[0] - 1) // 2
-
-  def one_bmmp_factor(j):
-    power1 = coefficient_index[2 * j] + coefficient_index[2 * j + 1]
-    power2 = coefficient_index[2 * j]
-    power3 = coefficient_index[2 * j + 1]
-    return (
-        matrix_utils.scale_by_x_power_n_minus_1(
-            power1, bsk[3 * j], log_modulus=log_coefficient_modulus
-        )
-        + matrix_utils.scale_by_x_power_n_minus_1(
-            power2, bsk[3 * j + 1], log_modulus=log_coefficient_modulus
-        )
-        + matrix_utils.scale_by_x_power_n_minus_1(
-            power3, bsk[3 * j + 2], log_modulus=log_coefficient_modulus
-        )
-    ).astype(jnp.uint32)
-
-  bmmp_factors = jax.vmap(one_bmmp_factor, in_axes=(0,), out_axes=0)(
-      jnp.arange(num_loop_terms, dtype=jnp.uint32)
+  bmmp_factors = bmmp.compute_bmmp_factors(
+      coefficient_index, bsk, log_coefficient_modulus
   )
 
   def one_external_product(j, c_prime_accum):

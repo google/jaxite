@@ -75,6 +75,25 @@ cpu_gpu_tpu_test(
 )
 
 cpu_gpu_tpu_test(
+    name = "bmmp_test",
+    size = "small",
+    timeout = "moderate",
+    srcs = ["jaxite/jaxite_lib/bmmp_test.py"],
+    python_version = "PY3",
+    shard_count = 3,
+    srcs_version = "PY3ONLY",
+    deps = [
+        ":jaxite",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
+        "@jaxite_deps_hypothesis//:pkg",
+        "@jaxite_deps_jax//:pkg",
+        "@jaxite_deps_jaxlib//:pkg",
+        "@jaxite_deps_numpy//:pkg",
+    ],
+)
+
+cpu_gpu_tpu_test(
     name = "decomposition_test",
     size = "small",
     timeout = "moderate",
