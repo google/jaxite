@@ -40,6 +40,8 @@ py_library(
     deps = [
         "@jaxite_deps_jax//:pkg",
         "@jaxite_deps_jaxlib//:pkg",
+        # copybara: jax:pallas_lib
+        # copybara: jax:pallas_tpu
     ],
 )
 

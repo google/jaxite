@@ -4,6 +4,7 @@ import decimal
 import hypothesis
 from hypothesis import strategies
 import jax.numpy as jnp
+from jaxite.jaxite_lib import jax_helpers
 from jaxite.jaxite_lib import matrix_utils
 import numpy as np
 
@@ -234,6 +235,15 @@ class MatrixUtilsTest(parameterized.TestCase):
         jnp.array(rhs, dtype=jnp.int32),
     )
     np.testing.assert_array_equal(expected, actual)
+
+  @hypothesis.given(vectors(512))
+  @hypothesis.settings(deadline=None)
+  def test_toeplitz_kernelized(self, poly):
+    if jax_helpers.get_tpu_version() >= 5:
+      multiplier = matrix_utils._generate_sign_matrix(len(poly))
+      exp = multiplier.transpose() * matrix_utils.toeplitz(poly)
+      actual = matrix_utils.toeplitz_kernelized(poly)
+      np.testing.assert_array_equal(exp, actual)
 
   @hypothesis.given(strategies.integers(min_value=0, max_value=10), vectors(16))
   @hypothesis.settings(deadline=None)

@@ -23,7 +23,7 @@ jobs:
         with:
           path: |
             ~/.cache/bazel
-          key: ${{ runner.os }}-bazel-${{ hashFiles('.bazelversion', '.bazelrc', 'WORKSPACE', 'requirements.txt') }}
+          key: ${{ runner.os }}-bazel-${{ hashFiles('.bazelversion', '.bazelrc', 'WORKSPACE', 'requirements_dev.txt') }}
 
       - name: "Run `bazel build`"
         run: |

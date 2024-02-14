@@ -3,6 +3,8 @@
 import functools
 
 import jax
+from jax.experimental import pallas as pl
+from jax.experimental.pallas import tpu as pltpu
 import jax.numpy as jnp
 
 
@@ -135,6 +137,60 @@ def toeplitz(x: jnp.ndarray) -> jnp.ndarray:
     return x[..., :n].transpose()
   r = jnp.roll(x, m, axis=-2)
   return toeplitz(jnp.concatenate([x, r], axis=-1))
+
+
+@jax.jit
+def toeplitz_kernelized(x: jnp.ndarray) -> jnp.ndarray:
+  """Use pltpu.roll op to implement toeplitz + sign matrix.
+
+  Note:
+    * Only works on TPU v5+.
+    * Current implementation assumes
+        - both input and output can fit in VMEM.
+        - size of input is a multiple of 128.
+
+  Args:
+    x: the 1D array to shift of length n
+
+  Returns:
+    A 2D matrix of shape (n, n), with row i containing the input rolled
+    rightward i times, with the lower-diagonal sign-flipped.
+  """
+  if len(x.shape) == 1:
+    x = x.reshape(1, x.shape[0])
+  assert len(x.shape) == 2
+  n = x.shape[-1]
+  if n % 128 != 0:
+    raise ValueError(f"Input size {n} is not a multiple of 128")
+
+  if x.dtype != jnp.float32 and x.dtype != jnp.int32:
+    raise ValueError(f"Input {x.dtype} is not supported")
+
+  def _toeplitz(inp_ref, out_ref):
+    chunk = jnp.broadcast_to(inp_ref[...], (128, n))
+    chunk = pltpu.roll(chunk, 0, 1, stride=1, stride_axis=0)
+    chunk_row_indices = jax.lax.broadcasted_iota(
+        dtype=jnp.int32, shape=(128, n), dimension=0
+    )
+    chunk_col_indices = jax.lax.broadcasted_iota(
+        dtype=jnp.int32, shape=(128, n), dimension=1
+    )
+    for r in range(0, n, 128):
+      out_ref[pl.ds(r, 128), slice(None)] = jnp.where(
+          chunk_row_indices > chunk_col_indices, -chunk, chunk
+      )
+      # Because the vector registers are aligned to size 128, this roll
+      # operation lowers to telling the TPU to refer to a different register,
+      # rather than actually applying any rolling operation. Hence, the op
+      # produces no hardware instructions.
+      chunk = pltpu.roll(chunk, 128, 1)
+      chunk_row_indices = chunk_row_indices + 128
+
+  return pl.pallas_call(
+      _toeplitz,
+      out_shape=jax.ShapeDtypeStruct((n, n), x.dtype),
+      interpret=(jax.default_backend() == "cpu"),
+  )(x)
 
 
 @jax.named_call
