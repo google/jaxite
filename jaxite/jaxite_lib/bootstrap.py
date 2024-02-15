@@ -473,11 +473,13 @@ def jit_blind_rotate(
   # bootstrapping key to reduce the number of external products required by 1/2.
   num_loop_terms = (coefficient_index.shape[0] - 1) // 2
 
-  def one_bmmp_factor(j):
+  def one_external_product(j, c_prime_accum):
+    # Doing this computation inside the external product loop improves cache
+    # locality, resulting in reduced data copying.
     power1 = coefficient_index[2 * j] + coefficient_index[2 * j + 1]
     power2 = coefficient_index[2 * j]
     power3 = coefficient_index[2 * j + 1]
-    return (
+    bmmp_factor = (
         matrix_utils.scale_by_x_power_n_minus_1(
             power1, bsk[3 * j], log_modulus=log_coefficient_modulus
         )
@@ -488,14 +490,8 @@ def jit_blind_rotate(
             power3, bsk[3 * j + 2], log_modulus=log_coefficient_modulus
         )
     ).astype(jnp.uint32)
-
-  bmmp_factors = jax.vmap(one_bmmp_factor, in_axes=(0,), out_axes=0)(
-      jnp.arange(num_loop_terms, dtype=jnp.uint32)
-  )
-
-  def one_external_product(j, c_prime_accum):
     return c_prime_accum + jit_external_product(
-        rgsw_ct=bmmp_factors[j],
+        rgsw_ct=bmmp_factor,
         rlwe_ct=c_prime_accum,
         decomposition_params=decomposition_params,
     )

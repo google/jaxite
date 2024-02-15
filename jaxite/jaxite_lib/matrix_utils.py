@@ -317,9 +317,19 @@ def scale_by_x_power_n_minus_1(
     An `jnp.ndarray` of the same shape as `matrix`, containing the
     entries of `matrix` each scaled by x^n - 1.
   """
-  x_power_n_part = monomial_mul_matrix(matrix, power, log_modulus)
-  minus_one_part = -matrix
-  output = x_power_n_part + minus_one_part
+  # This function can't yet be kernelized because pltpu.roll does not support
+  # dynamic shifts.
+  indices = jax.lax.broadcasted_iota(
+      dtype=jnp.int32, shape=matrix.shape, dimension=2
+  )
+  n = matrix.shape[2]
+  power = power % (2 * n)
+  shift = power % n
+  flip = (power // n) % 2 == 1
+  rolled = jnp.roll(matrix, shift, axis=2)
+  rolled = jnp.where(flip, -rolled, rolled)
+  x_power_n_part = jnp.where(indices < shift, -rolled, rolled)
+  output = x_power_n_part - matrix
 
   if 0 < log_modulus < 32:
     output = jnp.mod(output, jnp.uint32(2) ** log_modulus)
