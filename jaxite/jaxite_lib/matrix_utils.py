@@ -6,6 +6,7 @@ import jax
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
 import jax.numpy as jnp
+from jaxite.jaxite_lib import jax_helpers
 
 
 @jax.jit
@@ -197,9 +198,16 @@ def toeplitz_kernelized(x: jnp.ndarray) -> jnp.ndarray:
 @jax.jit
 def toeplitz_poly_mul(a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
   """Computes a poly multiplication mod (X^N + 1) where N = len(a)."""
-  multiplier = _generate_sign_matrix(len(a))
-  left_matrix = multiplier * toeplitz(a).transpose()
-  return i32_as_u8_matmul(b, left_matrix.transpose())
+  tpu_version = jax_helpers.get_tpu_version()
+  n = a.shape[-1]
+  if n % 128 == 0 and tpu_version >= 5:
+    toeplitzed = toeplitz_kernelized(a.astype(jnp.int32))
+    return i32_as_u8_matmul(b, toeplitzed)
+  else:
+    # This branch is non-optimized, does not lower well on most platforms.
+    multiplier = _generate_sign_matrix(len(a))
+    left_matrix = multiplier.transpose() * toeplitz(a)
+    return i32_as_u8_matmul(b, left_matrix)
 
 
 @jax.named_call

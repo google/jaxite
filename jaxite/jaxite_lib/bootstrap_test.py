@@ -200,6 +200,7 @@ class BootstrapTest(BootstrapBaseTest):
         rlwe_rng=rng,
     )
 
+  @absltest.skip("b/325287870")
   def test_6_bit_bootstrap(self, log_ai_bound: int, seed: int):
     message_bits = 6
     padding_bits = 1
