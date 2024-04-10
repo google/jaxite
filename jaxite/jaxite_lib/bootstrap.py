@@ -1,4 +1,4 @@
-"""The API for bootstrapping in TFHE."""
+"""The API for bootstrapping in CGGI."""
 import dataclasses
 import functools
 from typing import Any, Callable, Optional

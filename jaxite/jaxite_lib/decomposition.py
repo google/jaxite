@@ -210,7 +210,7 @@ def signed_decomposition(
 
   # reversed because the digits are computed from least-significant bit to
   # highest-significant bit..
-  return result[::-1][:num_levels]
+  return jnp.flip(result, axis=-1)[:num_levels]
 
 
 # Applies the signed decomposition to each coefficient of a polynomial

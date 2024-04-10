@@ -190,7 +190,6 @@ def toeplitz_kernelized(x: jnp.ndarray) -> jnp.ndarray:
   return pl.pallas_call(
       _toeplitz,
       out_shape=jax.ShapeDtypeStruct((n, n), x.dtype),
-      interpret=(jax.default_backend() == "cpu"),
   )(x)
 
 
@@ -258,27 +257,20 @@ def monomial_mul(
         polynomial
   """
   n = poly.shape[0]
-
-  # After a multiplication by X^{2N}, the polynomial is unchanged.
   degree = degree % (2 * n)
-  flip = degree // n
   shift = degree % n
-
-  # equivalent to "if degree >= n: poly = -poly" because 0 <= degree < 2N
-  poly = jnp.uint32((-1) ** flip) * poly
-  rolled = jnp.roll(poly, shift)
-
-  # trick: generate an array like [1, 1, ..., 1, -1, -1, ..., -1]
-  # and rolling that gives the right argument to use in an element-wise product
-  # with the tail truncated.
-  ones = jnp.ones(n, dtype=jnp.uint32)
-  sign = jnp.roll(jnp.concatenate([ones, -ones]), shift)
-  output = rolled * sign[:n]
+  flip = (degree // n) % 2 == 1
+  indices = jax.lax.broadcasted_iota(
+      dtype=jnp.int32, shape=poly.shape, dimension=0
+  )
+  rolled = jnp.roll(poly, degree)
+  rolled = jnp.where(flip, -rolled, rolled)
+  output = jnp.where(indices < shift, -rolled, rolled)
 
   if 0 < log_modulus < 32:
     output = jnp.mod(output, jnp.uint32(2) ** log_modulus)
 
-  return output
+  return output.astype(poly.dtype)
 
 
 monomial_mul_list = jax.vmap(monomial_mul, in_axes=(0, None, None), out_axes=0)
