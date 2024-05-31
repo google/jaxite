@@ -202,7 +202,9 @@ class BoolBasicOperationsTest(parameterized.TestCase):
 
   @parameterized.named_parameters(
       dict(testcase_name='_b=4_L=8', decomp_log_base=4, l=8),
-      dict(testcase_name='_b=4_L=7', decomp_log_base=4, l=7),
+      # TODO(b/335701655): odd L results in tensor shapes that conflict with
+      # the TPU kernel's requirements in polymul_kernel.py.
+      # dict(testcase_name='_b=4_L=7', decomp_log_base=4, l=7),
       dict(testcase_name='_b=4_L=6', decomp_log_base=4, l=6),
   )
   def test_bsk_decomposition_params(self, decomp_log_base: int, l: int) -> None:

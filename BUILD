@@ -1,6 +1,6 @@
 # An FHE cryptosystem built in JAX
 
-load("@jaxite//bazel:test_oss.bzl", "cpu_gpu_tpu_test", "gpu_tpu_test", "multichip_tpu_test")
+load("@jaxite//bazel:test_oss.bzl", "cpu_gpu_tpu_test", "gpu_tpu_test", "multichip_tpu_test", "tpu_test")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_python//python:defs.bzl", "py_library", "py_test")
 
@@ -69,6 +69,24 @@ cpu_gpu_tpu_test(
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_absl_py//absl/testing:parameterized",
         "@jaxite_deps_hypothesis//:pkg",
+        "@jaxite_deps_jax//:pkg",
+        "@jaxite_deps_jaxlib//:pkg",
+        "@jaxite_deps_numpy//:pkg",
+    ],
+)
+
+tpu_test(
+    name = "polymul_kernel_test",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["jaxite/jaxite_lib/polymul_kernel_test.py"],
+    python_version = "PY3",
+    shard_count = 3,
+    srcs_version = "PY3ONLY",
+    deps = [
+        ":jaxite",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
         "@jaxite_deps_jax//:pkg",
         "@jaxite_deps_jaxlib//:pkg",
         "@jaxite_deps_numpy//:pkg",

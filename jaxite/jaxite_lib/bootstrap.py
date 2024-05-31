@@ -1,4 +1,5 @@
 """The API for bootstrapping in CGGI."""
+
 import dataclasses
 import functools
 from typing import Any, Callable, Optional
@@ -10,6 +11,7 @@ from jaxite.jaxite_lib import key_switch
 from jaxite.jaxite_lib import lwe
 from jaxite.jaxite_lib import matrix_utils
 from jaxite.jaxite_lib import parameters
+from jaxite.jaxite_lib import polymul_kernel
 from jaxite.jaxite_lib import random_source
 from jaxite.jaxite_lib import rgsw
 from jaxite.jaxite_lib import rlwe
@@ -326,14 +328,6 @@ def external_product(
   )
 
 
-# in_axes = (None, 1) means that the first argument is repeated across all
-# calls, while the second argument is mapped across its second index
-# (column-wise)
-vector_matrix_polymul = jax.jit(
-    jax.vmap(matrix_utils.poly_dot_product, in_axes=(None, 1), out_axes=0)
-)
-
-
 @functools.partial(jax.jit, static_argnames="decomposition_params")
 def jit_external_product(
     rgsw_ct: jnp.ndarray,
@@ -344,7 +338,9 @@ def jit_external_product(
   decomposed_rlwe = decomposition.decompose_rlwe_ciphertext(
       rlwe_ct, decomposition_params
   )
-  return vector_matrix_polymul(decomposed_rlwe, rgsw_ct)
+  return polymul_kernel.negacyclic_vector_matrix_polymul(
+      decomposed_rlwe, rgsw_ct
+  )
 
 
 def cmux(
