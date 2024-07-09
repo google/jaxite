@@ -128,10 +128,10 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
       pl.pallas_call(
           vec_mat_polymul_kernel,
           in_specs=(
-              pl.BlockSpec(lambda b: (b, 0, 0), (block_b, 1, n)),
-              pl.BlockSpec(lambda b: (b, 0, 0), (block_b, m, n)),
+              pl.BlockSpec((block_b, 1, n), lambda b: (b, 0, 0)),
+              pl.BlockSpec((block_b, m, n), lambda b: (b, 0, 0)),
           ),
-          out_specs=pl.BlockSpec(lambda b: (b, 0, 0), (block_b, 4 * m, n)),
+          out_specs=pl.BlockSpec((block_b, 4 * m, n), lambda b: (b, 0, 0)),
           out_shape=jax.ShapeDtypeStruct((b, 4 * m, n), jnp.int32),
           grid=(steps_b,),
       )(
