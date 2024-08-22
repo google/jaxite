@@ -12,6 +12,25 @@ import jax
 import jax.numpy as jnp
 
 
+def _normalize_value(value: Any, dtype: jnp.dtype):
+  """Normalize value to the correct bounds for dtype.
+
+  If the dtype is unsigned, normalizes negative values into the unsigned
+  range.
+
+  NumPy deprecated out-of-bound conversions.
+    Args:
+      value: A scalar value to normalize
+      dtype: The data type of the JAX ndarray to generate
+
+    Returns:
+      A noramlized scalar value.
+  """
+  is_unsigned = jnp.issubdtype(dtype, jnp.unsignedinteger)
+  normalized = value % (jnp.iinfo(dtype).max + 1) if is_unsigned else value
+  return normalized
+
+
 def _shape_generator(
     generator: Callable[[], Any],
     shape: Sequence[int],
@@ -37,7 +56,11 @@ def _shape_generator(
     raise ValueError(f"Shape dimensions must be positive: got {shape}.")
   num_elements = functools.reduce(operator.mul, shape, 1)
   return jnp.reshape(
-      jnp.array([generator() for _ in range(num_elements)], dtype), shape
+      jnp.array(
+          [_normalize_value(generator(), dtype) for _ in range(num_elements)],
+          dtype,
+      ),
+      shape,
   )
 
 
@@ -115,7 +138,9 @@ class SystemRandomSource(RandomSource):
       self, shape: Sequence[int] = (1,), dtype: jnp.dtype = jnp.uint32
   ) -> jax.Array:
     return _shape_generator(
-        lambda: round(self.rng.normalvariate(0, self.normal_std)), shape, dtype
+        lambda: round(self.rng.normalvariate(0, self.normal_std)),
+        shape,
+        dtype,
     )
 
   def sk_uniform(
@@ -176,7 +201,9 @@ class NormalOnlyRng(RandomSource):
       self, shape: Sequence[int] = (1,), dtype: jnp.dtype = jnp.uint32
   ) -> jax.Array:
     return _shape_generator(
-        lambda: round(self.rng.normalvariate(0, self.normal_std)), shape, dtype
+        lambda: round(self.rng.normalvariate(0, self.normal_std)),
+        shape,
+        dtype,
     )
 
   def sk_uniform(
