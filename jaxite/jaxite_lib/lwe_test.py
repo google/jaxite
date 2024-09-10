@@ -51,7 +51,7 @@ class LweEncryptDecryptTest(parameterized.TestCase):
 
     self.assertEqual(dim, key.lwe_dimension)
     self.assertLen(key.key_data, dim)
-    self.assertEqual(jnp.uint32(2**32), key.modulus)
+    self.assertEqual(0, key.modulus)
 
   @hypothesis.given(strategies.integers(min_value=0, max_value=2**30 - 1))
   @hypothesis.settings(deadline=None)
