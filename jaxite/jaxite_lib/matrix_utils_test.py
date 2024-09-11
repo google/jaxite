@@ -207,22 +207,22 @@ class MatrixUtilsTest(parameterized.TestCase):
     np.testing.assert_array_equal(expected, mono_mul_output)
 
   def test_x_power_n_minus_1(self):
-    expected = jnp.array([-1, 0, 1, 0], dtype=jnp.uint32)
+    expected = jnp.array([-1, 0, 1, 0], dtype=jnp.int32)
     actual = matrix_utils.x_power_n_minus_1(n=2, poly_mod_deg=4)
     np.testing.assert_array_equal(expected, actual)
 
   def test_x_power_n_minus_1_zero(self):
-    expected = jnp.array([0, 0, 0, 0], dtype=jnp.uint32)
+    expected = jnp.array([0, 0, 0, 0], dtype=jnp.int32)
     actual = matrix_utils.x_power_n_minus_1(n=0, poly_mod_deg=4)
     np.testing.assert_array_equal(expected, actual)
 
   def test_x_power_n_minus_1_reduced_degree_with_sign_flip(self):
-    expected = jnp.array([-1, 0, -1, 0], dtype=jnp.uint32)
+    expected = jnp.array([-1, 0, -1, 0], dtype=jnp.int32)
     actual = matrix_utils.x_power_n_minus_1(n=6, poly_mod_deg=4)
     np.testing.assert_array_equal(expected, actual)
 
   def test_x_power_n_minus_1_reduced_degree_without_sign_flip(self):
-    expected = jnp.array([-1, 0, 1, 0], dtype=jnp.uint32)
+    expected = jnp.array([-1, 0, 1, 0], dtype=jnp.int32)
     actual = matrix_utils.x_power_n_minus_1(n=10, poly_mod_deg=4)
     np.testing.assert_array_equal(expected, actual)
 

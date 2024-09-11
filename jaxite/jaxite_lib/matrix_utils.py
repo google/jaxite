@@ -58,7 +58,7 @@ def x_power_n_minus_1(n: jnp.uint32, poly_mod_deg: jnp.uint32) -> jnp.ndarray:
   degree = n % (2 * poly_mod_deg)
   flip = degree // poly_mod_deg
   reduced_degree = degree % poly_mod_deg
-  zeros = jnp.zeros(poly_mod_deg, dtype=jnp.uint32)
+  zeros = jnp.zeros(poly_mod_deg, dtype=jnp.int32)
   return zeros.at[reduced_degree].set((-1) ** flip) - zeros.at[0].set(1)
 
 
