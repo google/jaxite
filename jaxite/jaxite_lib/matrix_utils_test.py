@@ -3,6 +3,7 @@ import decimal
 
 import hypothesis
 from hypothesis import strategies
+import jax
 import jax.numpy as jnp
 from jaxite.jaxite_lib import jax_helpers
 from jaxite.jaxite_lib import matrix_utils
@@ -268,6 +269,35 @@ class MatrixUtilsTest(parameterized.TestCase):
         power, matrix, log_modulus=32
     )
     np.testing.assert_array_equal(expected, actual)
+
+  def test_hpmatmul_Conv_Adapt_Conv(self):
+    """Test the correctness of the Conv-Adapt-Conv algorithm."""
+    key = jax.random.key(0)
+    mat_a_shape = (16, 16)
+    mat_b_shape = (mat_a_shape[1], 16)
+    upper_value = (1 << 31) - 1
+    modulus_32 = 4294967291
+    mat_a = jax.random.randint(
+        key, mat_a_shape, 0, upper_value, dtype=jnp.uint32
+    )
+    mat_b = jax.random.randint(
+        key, mat_b_shape, 0, upper_value, dtype=jnp.uint32
+    )
+    mat_result_outerproduct = matrix_utils.hpmatmul_conv_adapt_outer_product(
+        mat_a, mat_b
+    )
+    compiled_mat_a = matrix_utils.hpmatmul_offline_compile_bag(
+        mat_a, modulus_32
+    )
+    mat_result_bag = matrix_utils.hpmatmul_bag_adapt(compiled_mat_a, mat_b)
+    mat_result_conv = matrix_utils.hpmatmul_conv_adapt_conv(mat_a, mat_b)
+    if np.testing.assert_array_equal(mat_result_outerproduct, mat_result_conv):
+      if np.testing.assert_array_equal(mat_result_bag, mat_result_outerproduct):
+        print('pass')
+      else:
+        print('mat_result_bag and mat_result_outerproduct do not match')
+    else:
+      print('mat_result_outerproduct and mat_result_conv do not match')
 
 
 if __name__ == '__main__':
