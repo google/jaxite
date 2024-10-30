@@ -3,6 +3,7 @@ import decimal
 
 import hypothesis
 from hypothesis import strategies
+import jax
 import jax.numpy as jnp
 from jaxite.jaxite_lib import jax_helpers
 from jaxite.jaxite_lib import matrix_utils
@@ -269,6 +270,92 @@ class MatrixUtilsTest(parameterized.TestCase):
     )
     np.testing.assert_array_equal(expected, actual)
 
+
+def test_hpmatmul_outerproduct():
+  """Test the correctness of the Conv-Adapt-Conv algorithm."""
+  key = jax.random.key(0)
+  mat_a_shape = (4, 256)
+  mat_b_shape = (mat_a_shape[1], 4)
+  upper_value = (1 << 28) - 1
+  modulus_32 = 4294967291
+  modulus_64 = jnp.array(modulus_32, dtype=jnp.uint64)
+  mat_a = jax.random.randint(key, mat_a_shape, 0, upper_value, dtype=jnp.uint32)
+  mat_b = jax.random.randint(key, mat_b_shape, 0, upper_value, dtype=jnp.uint32)
+
+  mat_reference_result = matrix_utils.hpmatmul_golden(mat_a, mat_b, modulus_32)
+  mat_result_outerproduct = matrix_utils.hpmatmul_conv_adapt_outer_product(
+      mat_a, mat_b
+  )
+  mat_result_outerproduct = mat_result_outerproduct % modulus_64
+
+  np.testing.assert_array_equal(mat_result_outerproduct, mat_reference_result)
+  print('pass testing mat_result_outerproduct == mat_reference_result')
+
+
+def test_hpmatmul_bat():
+  """Test the correctness of the Basis Align Transformation (BAT) algorithm."""
+  key = jax.random.key(0)
+  mat_a_shape = (4, 256)
+  mat_b_shape = (mat_a_shape[1], 4)
+  upper_value = (1 << 28) - 1
+  modulus_32 = 4294967291
+  modulus_64 = jnp.array(modulus_32, dtype=jnp.uint64)
+  mat_a = jax.random.randint(key, mat_a_shape, 0, upper_value, dtype=jnp.uint32)
+  mat_b = jax.random.randint(key, mat_b_shape, 0, upper_value, dtype=jnp.uint32)
+
+  mat_reference_result = matrix_utils.hpmatmul_golden(mat_a, mat_b, modulus_32)
+  compiled_mat_a = matrix_utils.hpmatmul_offline_compile_bat(mat_a, modulus_32)
+
+  mat_result_bat = matrix_utils.hpmatmul_bat_adapt(compiled_mat_a, mat_b)
+  mat_result_bat = mat_result_bat % modulus_64
+
+  # Sanity Checking
+  for i in range(mat_a.shape[0]):
+    for j in range(mat_b.shape[1]):
+      if mat_result_bat[i, j] != mat_reference_result[i][j]:
+        print(
+            f'mat_result_bat[{i}, {j}]={mat_result_bat[i, j]} not match'
+            f' mat_reference_result[{i}, {j}]={ mat_reference_result[i][j]}'
+        )
+
+  np.testing.assert_array_equal(mat_result_bat, mat_reference_result)
+  print('pass testing mat_result_bat == mat_reference_result')
+
+
+def test_hpmatmul_bat_full_precision():
+  """Test the correctness of the Conv-Adapt-Conv algorithm."""
+  key = jax.random.key(0)
+  mat_a_shape = (4, 256)
+  mat_b_shape = (mat_a_shape[1], 4)
+  upper_value = (1 << 32) - 1
+  modulus_32 = 4294967291
+  modulus_64 = jnp.array(modulus_32, dtype=jnp.uint64)
+  mat_a = jax.random.randint(
+      key, mat_a_shape, 0, upper_value, dtype=jnp.uint32
+  )
+  mat_b = jax.random.randint(
+      key, mat_b_shape, 0, upper_value, dtype=jnp.uint32
+  )
+
+  mat_reference_result = matrix_utils.hpmatmul_golden(mat_a, mat_b, modulus_32)
+  compiled_mat_a = matrix_utils.hpmatmul_offline_compile_bat(
+      mat_a, modulus_32
+  )
+
+  mat_result_bat = matrix_utils.hpmatmul_bat_adapt(compiled_mat_a, mat_b)
+  mat_result_bat = mat_result_bat % modulus_64
+
+  # Sanity Checking
+  for i in range(mat_a.shape[0]):
+    for j in range(mat_b.shape[1]):
+      if mat_result_bat[i, j] != mat_reference_result[i][j]:
+        print(
+            f'mat_result_bat[{i}, {j}]={mat_result_bat[i, j]} not match'
+            f' mat_reference_result[{i}, {j}]={ mat_reference_result[i][j]}'
+        )
+
+  np.testing.assert_array_equal(mat_result_bat, mat_reference_result)
+  print('pass testing mat_result_bat == mat_reference_result')
 
 if __name__ == '__main__':
   absltest.main()
