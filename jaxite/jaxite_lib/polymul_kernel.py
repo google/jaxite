@@ -50,8 +50,8 @@ def _i32_matmul_unreduced(lhs, rhs):
     rhs_i8 = lax.bitwise_and(rhs_i8, jnp.broadcast_to(0xFF, rhs_i8.shape))
     # TODO(b/201562458): Use int8 matmuls once properly supported
     raw_out = lax.dot(
-        lhs_i8.astype(jnp.float32),
-        rhs_i8.astype(jnp.float32),
+        lhs_i8.astype(jnp.bfloat16),
+        rhs_i8.astype(jnp.bfloat16),
         preferred_element_type=jnp.float32,
     ).astype(jnp.int32)
     acc += jnp.left_shift(raw_out, out_shift_base + rhs_shift)
