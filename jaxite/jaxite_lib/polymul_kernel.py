@@ -6,7 +6,7 @@ from jax.experimental.pallas import tpu as pltpu
 import jax.numpy as jnp
 from jaxite.jaxite_lib import jax_helpers
 from jaxite.jaxite_lib import matrix_utils
-
+import functools
 
 # This fallback serves as a reference implementation, but does not lower well on
 # TPU due to the semantics of the vmap.
@@ -32,16 +32,16 @@ fallback_i32_matmul = jax.vmap(
 def _i32_matmul_unreduced(lhs, rhs):
   lax = jax.lax
   m, k, n = lhs.shape[0], lhs.shape[1], rhs.shape[1]
-  lhs_i8 = jnp.broadcast_to(lhs, (4, *lhs.shape))
+  lhs_i8 = jnp.broadcast_to(lhs, (2, *lhs.shape)).reshape((4, m//2, k))
   lhs_shift = lax.broadcasted_iota(jnp.int32, lhs_i8.shape, dimension=0) * 8
   lhs_i8 = lax.shift_right_logical(lhs_i8, lhs_shift)
   lhs_i8 = lax.bitwise_and(lhs_i8, jnp.broadcast_to(0xFF, lhs_i8.shape))
-  lhs_i8 = lhs_i8.reshape((4 * m, k))
+  lhs_i8 = lhs_i8.reshape((2 * m, k))
 
-  acc = jnp.zeros((4 * m, n), dtype=jnp.int32)
   out_shift_base = lax.mul(
-      lax.div(lax.broadcasted_iota(jnp.int32, (4 * m, n), dimension=0), m), 8
+      lax.broadcasted_iota(jnp.int32, (4, m//2, n), dimension=0), 8
   )
+  acc = jnp.zeros((m//2, n), dtype=jnp.int32)
   for rhs_shift in range(0, 32, 8):
     # TODO(b/201562458): Don't multiply lhs rows with large shift.
     rhs_i8 = lax.shift_right_logical(
@@ -53,9 +53,96 @@ def _i32_matmul_unreduced(lhs, rhs):
         lhs_i8.astype(jnp.bfloat16),
         rhs_i8.astype(jnp.bfloat16),
         preferred_element_type=jnp.float32,
-    ).astype(jnp.int32)
-    acc += jnp.left_shift(raw_out, out_shift_base + rhs_shift)
+    ).astype(jnp.int32).reshape((4, m//2, n))
+    raw_out = jnp.left_shift(raw_out, out_shift_base + rhs_shift)
+    acc += raw_out[0] + raw_out[1] + raw_out[2] + raw_out[3]
   return acc
+
+
+# def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
+#   # b is the product of the RLWE dimension (e.g., 3) and the number of
+#   # decomposition levels in the decomposition parameters (e.g., 6).
+#   # n is the degree of the RLWE polynomials.
+#   b, n = poly_vec1.shape
+#   # m is the number of polynomials in the RLWE dimension (e.g., 3)
+#   b2, m, n2 = poly_mat2.shape
+#   assert b == b2 and n == n2
+
+#   # We must pad m to 8 because the TPU register sublane has size 8, and more
+#   # importantly, many of the pallas instructions like pltpu.roll will fail
+#   # if the sublane size is not a multiple of 8. This further adds the assumption
+#   # that the value of m is < 8. We are unlikely to need m > 8 for the
+#   # foreseeable future, but if we did, we would need to round up to the next
+#   # multiple of 8.
+#   real_m = m
+#   m = 8
+#   poly_mat2 = jnp.pad(
+#       poly_mat2,
+#       ((0, 0), (0, (m // 2) - real_m), (0, 0)),
+#       mode="constant",
+#       constant_values=(0,),
+#   )
+#   poly_mat2 = jnp.concatenate((poly_mat2, poly_mat2), axis=(1))
+
+#   if n % 128 != 0:
+#     raise ValueError(f"Input size {n} is not a multiple of 128")
+#   dtype = poly_vec1.dtype
+
+#   def vec_mat_polymul_kernel_single_batch(vec_ref, mat_ref, out_ref):
+#     chunk = jnp.broadcast_to(vec_ref[...], (128, n))
+#     chunk = pltpu.roll(chunk, 0, 1, stride=1, stride_axis=0)
+#     chunk_row_indices = jax.lax.broadcasted_iota(
+#         dtype=jnp.int32, shape=(128, n), dimension=0
+#     )
+#     chunk_col_indices = jax.lax.broadcasted_iota(
+#         dtype=jnp.int32, shape=(128, n), dimension=1
+#     )
+#     toeplitz_chunks = []
+#     for _ in range(0, n, 128):
+#       toeplitz_chunks.append(
+#           jnp.where(chunk_row_indices > chunk_col_indices, -chunk, chunk)
+#       )
+#       # Because the vector registers are aligned to size 128, this roll
+#       # operation lowers to telling the TPU to refer to a different register,
+#       # rather than actually applying any rolling operation. Hence, the op
+#       # produces no hardware instructions.
+#       chunk = pltpu.roll(chunk, 128, 1)
+#       chunk_row_indices = chunk_row_indices + 128
+#     vec_toeplitz = jax.lax.concatenate(toeplitz_chunks, dimension=0)
+
+#     assert vec_toeplitz.shape == (n, n)
+#     result = _i32_matmul_unreduced(mat_ref[...], vec_toeplitz)
+#     assert result.shape == (m//2, n), result.shape
+#     out_ref[...] = result
+
+#   def vec_mat_polymul_kernel(vec_ref, mat_ref, out_ref):
+#     for b in range(vec_ref.shape[0]):
+#       vec_mat_polymul_kernel_single_batch(
+#           vec_ref.at[b], mat_ref.at[b], out_ref.at[b]
+#       )
+
+#   block_b = 2
+#   steps_b, rem_b = divmod(b, block_b)
+#   if rem_b:
+#     raise ValueError(f"b={b} is not a multiple of block_b={block_b}")
+
+#   return jnp.sum(
+#       pl.pallas_call(
+#           vec_mat_polymul_kernel,
+#           in_specs=(
+#               pl.BlockSpec((block_b, 1, n), lambda b: (b, 0, 0)),
+#               pl.BlockSpec((block_b, m, n), lambda b: (b, 0, 0)),
+#           ),
+#           out_specs=pl.BlockSpec((block_b, m//2, n), lambda b: (b, 0, 0)),
+#           out_shape=jax.ShapeDtypeStruct((b, m//2, n), jnp.int32),
+#           grid=(steps_b,),
+#       )(
+#           poly_vec1[:, None].astype(jnp.int32), poly_mat2.astype(jnp.int32)
+#       ).reshape(
+#           b, m//2, n
+#       ),
+#       axis=(0, ),
+#   ).astype(jnp.uint32)[:real_m]
 
 
 def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
@@ -77,17 +164,26 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
   m = 8
   poly_mat2 = jnp.pad(
       poly_mat2,
-      ((0, 0), (0, m - real_m), (0, 0)),
+      ((0, 0), (0, (m // 2) - real_m), (0, 0)),
       mode="constant",
       constant_values=(0,),
   )
+  poly_mat2 = jnp.concatenate((poly_mat2, poly_mat2), axis=(1))
 
   if n % 128 != 0:
     raise ValueError(f"Input size {n} is not a multiple of 128")
   dtype = poly_vec1.dtype
 
-  def vec_mat_polymul_kernel_single_batch(vec_ref, mat_ref, out_ref):
-    chunk = jnp.broadcast_to(vec_ref[...], (128, n))
+  enable_all_psum_reduction = False
+
+  @functools.partial(
+      jax.jit,
+      static_argnames=[
+          "nsteps",
+      ],
+  )
+  def vec_mat_polymul_kernel(vec_ref, mat_ref, out_ref, psum_ref, nsteps):
+    chunk = jnp.broadcast_to(vec_ref[...][0], (128, n))
     chunk = pltpu.roll(chunk, 0, 1, stride=1, stride_axis=0)
     chunk_row_indices = jax.lax.broadcasted_iota(
         dtype=jnp.int32, shape=(128, n), dimension=0
@@ -109,39 +205,68 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
     vec_toeplitz = jax.lax.concatenate(toeplitz_chunks, dimension=0)
 
     assert vec_toeplitz.shape == (n, n)
-    result = _i32_matmul_unreduced(mat_ref[...], vec_toeplitz)
-    assert result.shape == (4 * m, n), result.shape
-    out_ref[...] = result
 
-  def vec_mat_polymul_kernel(vec_ref, mat_ref, out_ref):
-    for b in range(vec_ref.shape[0]):
-      vec_mat_polymul_kernel_single_batch(
-          vec_ref.at[b], mat_ref.at[b], out_ref.at[b]
+    @pl.when(pl.program_id(0) == 0)
+    def _():
+      psum_ref[...] = jnp.zeros_like(psum_ref)
+
+    if enable_all_psum_reduction:
+      psum_ref[...][pl.program_id(0), :, :] = _i32_matmul_unreduced(
+          mat_ref[...][0], vec_toeplitz
       )
+    else:
+      result = _i32_matmul_unreduced(mat_ref[...][0], vec_toeplitz)
+      assert result.shape == (m // 2, n), result.shape
+      psum_ref[...] += result
 
-  block_b = 2
-  steps_b, rem_b = divmod(b, block_b)
-  if rem_b:
-    raise ValueError(f"b={b} is not a multiple of block_b={block_b}")
+    if enable_all_psum_reduction:
+      @pl.when(pl.program_id(0) == nsteps - 1)
+      def _():
+        for i in range(1, nsteps):
+          out_ref[...] += psum_ref[...][i, :, :]
+    else:
+      out_ref[...] = psum_ref[...]
 
-  return jnp.sum(
-      pl.pallas_call(
-          vec_mat_polymul_kernel,
-          in_specs=(
-              pl.BlockSpec((block_b, 1, n), lambda b: (b, 0, 0)),
-              pl.BlockSpec((block_b, m, n), lambda b: (b, 0, 0)),
-          ),
-          out_specs=pl.BlockSpec((block_b, 4 * m, n), lambda b: (b, 0, 0)),
-          out_shape=jax.ShapeDtypeStruct((b, 4 * m, n), jnp.int32),
-          grid=(steps_b,),
+  if enable_all_psum_reduction:
+    return pl.pallas_call(
+        functools.partial(vec_mat_polymul_kernel, nsteps=b),
+        grid_spec=pltpu.PrefetchScalarGridSpec(
+            num_scalar_prefetch=0,
+            in_specs=(
+                pl.BlockSpec((1, 1, n), lambda b: (b, 0, 0)),
+                pl.BlockSpec((1, m, n), lambda b: (b, 0, 0)),
+            ),
+            out_specs=pl.BlockSpec((m//2, n), lambda b: (0, 0)),
+            scratch_shapes=[pltpu.VMEM((b, m//2, n), jnp.int32)],
+            grid=(b,),
+        ),
+        name="jit_vec_mat_polymul_kernel",
+        out_shape=jax.ShapeDtypeStruct((m//2, n), jnp.int32),
+        compiler_params=pltpu.TPUCompilerParams(
+            dimension_semantics=("parallel",)),
       )(
           poly_vec1[:, None].astype(jnp.int32), poly_mat2.astype(jnp.int32)
-      ).reshape(
-          b, 4, m, n
-      ),
-      axis=(0, 1),
-  ).astype(jnp.uint32)[:real_m]
-
+      ).astype(jnp.uint32)[:real_m]
+  else:
+    return pl.pallas_call(
+        functools.partial(vec_mat_polymul_kernel, nsteps=b),
+        grid_spec=pltpu.PrefetchScalarGridSpec(
+            num_scalar_prefetch=0,
+            in_specs=(
+                pl.BlockSpec((1, 1, n), lambda b: (b, 0, 0)),
+                pl.BlockSpec((1, m, n), lambda b: (b, 0, 0)),
+            ),
+            out_specs=pl.BlockSpec((m//2, n), lambda b: (0, 0)),
+            scratch_shapes=[pltpu.VMEM((m//2, n), jnp.int32)],
+            grid=(b,),
+        ),
+        name="jit_vec_mat_polymul_kernel",
+        out_shape=jax.ShapeDtypeStruct((m//2, n), jnp.int32),
+        compiler_params=pltpu.TPUCompilerParams(
+            dimension_semantics=("parallel",)),
+      )(
+          poly_vec1[:, None].astype(jnp.int32), poly_mat2.astype(jnp.int32)
+      ).astype(jnp.uint32)[:real_m]
 
 @jax.named_call
 @jax.jit
@@ -174,9 +299,38 @@ def negacyclic_vector_matrix_polymul(
     return fallback_vector_matrix_polymul(vec, matrix)
 
 
+def _i32_matmul_unreduced_matmul(lhs, rhs):
+  lax = jax.lax
+  m, k, n = lhs.shape[0], lhs.shape[1], rhs.shape[1]
+  lhs_i8 = jnp.broadcast_to(lhs, (4, *lhs.shape))
+  lhs_shift = lax.broadcasted_iota(jnp.int32, lhs_i8.shape, dimension=0) * 8
+  lhs_i8 = lax.shift_right_logical(lhs_i8, lhs_shift)
+  lhs_i8 = lax.bitwise_and(lhs_i8, jnp.broadcast_to(0xFF, lhs_i8.shape))
+  lhs_i8 = lhs_i8.reshape((4 * m, k))
+
+  acc = jnp.zeros((4 * m, n), dtype=jnp.int32)
+  out_shift_base = lax.mul(
+      lax.div(lax.broadcasted_iota(jnp.int32, (4 * m, n), dimension=0), m), 8
+  )
+  for rhs_shift in range(0, 32, 8):
+    # TODO(b/201562458): Don't multiply lhs rows with large shift.
+    rhs_i8 = lax.shift_right_logical(
+        rhs, jnp.broadcast_to(rhs_shift, rhs.shape)
+    )
+    rhs_i8 = lax.bitwise_and(rhs_i8, jnp.broadcast_to(0xFF, rhs_i8.shape))
+    # TODO(b/201562458): Use int8 matmuls once properly supported
+    raw_out = lax.dot(
+        lhs_i8.astype(jnp.bfloat16),
+        rhs_i8.astype(jnp.bfloat16),
+        preferred_element_type=jnp.float32,
+    ).astype(jnp.int32)
+    acc += jnp.left_shift(raw_out, out_shift_base + rhs_shift)
+  return acc
+
+
 def i32_matmul_unreduced(lhs, rhs, out):
   """A helper to isolate the matmul part of the kernel to test in isolation."""
-  out[...] = _i32_matmul_unreduced(lhs[...], rhs[...])
+  out[...] = _i32_matmul_unreduced_matmul(lhs[...], rhs[...])
 
 
 def i32_matmul(lhs, rhs):
