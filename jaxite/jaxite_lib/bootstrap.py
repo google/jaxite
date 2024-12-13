@@ -355,9 +355,15 @@ def jit_external_product(
   decomposed_rlwe = decomposition.decompose_rlwe_ciphertext(
       rlwe_ct, decomposition_params
   )
-  return polymul_kernel.negacyclic_vector_matrix_polymul(
-      decomposed_rlwe, rgsw_ct
-  )
+  use_bat = True
+  if use_bat:
+    return polymul_kernel.negacyclic_vector_matrix_polymul_bat(
+        decomposed_rlwe, rgsw_ct
+    )
+  else:
+    return polymul_kernel.negacyclic_vector_matrix_polymul(
+        decomposed_rlwe, rgsw_ct
+    )
 
 
 def cmux(
