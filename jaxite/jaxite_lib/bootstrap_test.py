@@ -43,7 +43,8 @@ class BootstrapBaseTest(parameterized.TestCase):
       padding_bits: int,
       rlwe_rng: random_source.RandomSource,
       skip_assert: bool = False,
-      use_bmmp: bool = True,
+      use_bmmp: bool = False,
+      use_bat: bool = True,
   ):
     cleartext = 2**message_bits - 1
     test_utils.assert_safe_modulus_switch(
@@ -82,7 +83,9 @@ class BootstrapBaseTest(parameterized.TestCase):
         decomposition_params=test_utils.BSK_DECOMP_PARAMS_128_BIT_SECURITY,
         prg=rlwe_rng,
         use_bmmp=use_bmmp,
+        use_bat=use_bat,
     )
+
     ksk = key_switch.gen_key(
         in_key=rlwe.flatten_key(rlwe_key),
         out_key=lwe_key,
@@ -126,6 +129,7 @@ class BootstrapBaseTest(parameterized.TestCase):
         test_utils.BSK_DECOMP_PARAMS_128_BIT_SECURITY,
         scheme_parameters,
         bsk.use_bmmp,
+        bsk.use_bat,
     )
 
     self.assertEqual(len(jit_bootstrapped), len(bootstrapped))
@@ -162,7 +166,6 @@ class BootstrapTest(BootstrapBaseTest):
     padding_bits = 1
     lwe_dimension = 4
     mod_degree = 64
-
     rng = random_source.PseudorandomSource(
         uniform_bounds=(0, 2**log_ai_bound),
         normal_std=1,
@@ -184,6 +187,8 @@ class BootstrapTest(BootstrapBaseTest):
   def test_3_bit_bootstrap_larger_lwe_dimension(
       self, log_ai_bound: int, seed: int, use_bmmp: bool
   ):
+    if not use_bmmp:
+      self.skipTest("BAT does not support larger LWE dimensions")
     message_bits = 3
     padding_bits = 1
     lwe_dimension = 100

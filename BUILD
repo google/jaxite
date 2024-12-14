@@ -266,7 +266,7 @@ gpu_tpu_test(
     ],
 )
 
-gpu_tpu_test(
+tpu_test(
     name = "jaxite_bool_multigate_test",
     size = "large",
     srcs = ["jaxite/jaxite_bool/jaxite_bool_multigate_test.py"],

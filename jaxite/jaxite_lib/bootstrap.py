@@ -17,7 +17,7 @@ from jaxite.jaxite_lib import rgsw
 from jaxite.jaxite_lib import rlwe
 from jaxite.jaxite_lib import types
 
-GEN_BSK_NUM_BATCHES = 15
+GEN_BSK_NUM_BATCHES = 20
 NON_DIVISIBLE_BATCH_SIZE_WARNING = (
     "Expected lwe_sk_dim to be a multiple of %s, but was %s. "
     "This is OK for tests with small LWE secret key sizes, but may cause "
@@ -31,7 +31,8 @@ class BootstrappingKey:
   """An array with row j an RGSW encryption of bit j of an LWE secret key."""
 
   encrypted_lwe_sk_bits: jnp.ndarray
-  use_bmmp: bool = True
+  use_bmmp: bool = False
+  use_bat: bool = True
 
 
 def gen_bootstrapping_key(
@@ -39,7 +40,8 @@ def gen_bootstrapping_key(
     rgsw_sk: rgsw.RgswSecretKey,
     decomposition_params: decomposition.DecompositionParameters,
     prg: random_source.RandomSource,
-    use_bmmp: bool = True,
+    use_bmmp: bool = False,
+    use_bat: bool = True,
 ) -> BootstrappingKey:
   """Generate a bootstrapping key for the given LWE secret key.
 
@@ -183,13 +185,43 @@ def gen_bootstrapping_key(
       rlwe_sk.modulus_degree,
   ))
 
+  def bat_offline_compile_cggi(mat_a):
+    """Convert the input matrix with 32 bit elements into u8(*matrix.shape,4,4).
+
+    Replace each element in the original matrix by a p*q matrix (p=q=4).
+
+    Args:
+      mat_a: The input matrix.
+
+    Returns:
+      The converted matrix.
+    """
+    mat_a_u8 = jax.lax.bitcast_convert_type(mat_a, new_dtype=jnp.uint8).reshape(
+        *mat_a.shape, 4, 1
+    )
+    mat_a_u8_r1 = jnp.roll(mat_a_u8, 1, axis=-2)
+    mat_a_u8_r2 = jnp.roll(mat_a_u8, 2, axis=-2)
+    mat_a_u8_r3 = jnp.roll(mat_a_u8, 3, axis=-2)
+    mat_a_u8_array = jnp.concatenate(
+        [mat_a_u8, mat_a_u8_r1, mat_a_u8_r2, mat_a_u8_r3], axis=-1
+    )
+    return jnp.tril(mat_a_u8_array)
+
+  if use_bmmp:
+    use_bat = False
+  else:
+    if use_bat:
+      encrypted_lwe_sk_bits = bat_offline_compile_cggi(encrypted_lwe_sk_bits)
+
   return BootstrappingKey(
-      encrypted_lwe_sk_bits=encrypted_lwe_sk_bits, use_bmmp=use_bmmp
+      encrypted_lwe_sk_bits=encrypted_lwe_sk_bits,
+      use_bmmp=use_bmmp,
+      use_bat=use_bat,
   )
 
 
 @jax.named_call
-@functools.partial(jax.jit, static_argnums=(4, 5, 6, 7))
+@functools.partial(jax.jit, static_argnums=(4, 5, 6, 7, 8))
 def jit_bootstrap(
     ciphertext: types.LweCiphertext,
     test_poly_ciphertext_message: jnp.ndarray,
@@ -198,7 +230,8 @@ def jit_bootstrap(
     ks_decomposition_params: decomposition.DecompositionParameters,
     bs_decomposition_params: decomposition.DecompositionParameters,
     scheme_params: parameters.SchemeParameters,
-    bsk_use_bmmp: bool = True,
+    bsk_use_bmmp: bool = False,
+    bsk_use_bat: bool = False,
 ) -> types.LweCiphertext:
   """Apply functional bootstrap to reduce noise in the input ciphertext.
 
@@ -236,6 +269,7 @@ def jit_bootstrap(
       approx_ciphertext,
       bsk_encrypted_lwe_sk_bits,
       bsk_use_bmmp,
+      bsk_use_bat,
       test_poly_log_coefficient_modulus,
       bs_decomposition_params,
   )
@@ -307,6 +341,7 @@ def bootstrap(
       approx_ciphertext,
       bsk.encrypted_lwe_sk_bits,
       bsk.use_bmmp,
+      bsk.use_bat,
       test_poly_log_coefficient_modulus,
       bs_decomposition_params,
   )
@@ -345,19 +380,25 @@ def external_product(
   )
 
 
-@functools.partial(jax.jit, static_argnames="decomposition_params")
+@functools.partial(jax.jit, static_argnums=(2, 3))
 def jit_external_product(
     rgsw_ct: jnp.ndarray,
     rlwe_ct: jnp.ndarray,
     decomposition_params: decomposition.DecompositionParameters,
+    use_bat: bool,
 ) -> rlwe.RlweCiphertext:
   """Compute the external product of an RSGW and RLWE ciphertext."""
   decomposed_rlwe = decomposition.decompose_rlwe_ciphertext(
       rlwe_ct, decomposition_params
   )
-  return polymul_kernel.negacyclic_vector_matrix_polymul(
-      decomposed_rlwe, rgsw_ct
-  )
+  if use_bat:
+    return polymul_kernel.negacyclic_vector_matrix_polymul_bat(
+        decomposed_rlwe, rgsw_ct
+    )
+  else:
+    return polymul_kernel.negacyclic_vector_matrix_polymul(
+        decomposed_rlwe, rgsw_ct
+    )
 
 
 def cmux(
@@ -365,6 +406,7 @@ def cmux(
     eq_zero: rlwe.RlweCiphertext,
     neq_zero: rlwe.RlweCiphertext,
     decomposition_params: decomposition.DecompositionParameters,
+    use_bat: bool,
 ) -> rlwe.RlweCiphertext:
   """Compute CMUX: controlled multiplexer.
 
@@ -373,6 +415,7 @@ def cmux(
     eq_zero: RLWE ciphertext selected if control=0
     neq_zero: RLWE ciphertext selected if control=1
     decomposition_params: decomposition parameters for the external product
+    use_bat: whether to use the batched implementation of the external product
 
   Returns:
     RlwePlaintext: selected RLWE ciphertext
@@ -397,7 +440,11 @@ def cmux(
     )
   modulus_degree = eq_zero.modulus_degree
   output = jit_cmux(
-      control.message, eq_zero.message, neq_zero.message, decomposition_params
+      control.message,
+      eq_zero.message,
+      neq_zero.message,
+      decomposition_params,
+      use_bat,
   )
   return rlwe.RlweCiphertext(
       log_coefficient_modulus=eq_zero.log_coefficient_modulus,
@@ -407,12 +454,13 @@ def cmux(
 
 
 @jax.named_call
-@functools.partial(jax.jit, static_argnames="decomposition_params")
+@functools.partial(jax.jit, static_argnums=(3, 4))
 def jit_cmux(
     control: jnp.ndarray,
     eq_zero: jnp.ndarray,
     neq_zero: jnp.ndarray,
     decomposition_params: decomposition.DecompositionParameters,
+    use_bat: bool,
 ) -> rlwe.RlweCiphertext:
   """A jitted cmux."""
   return (
@@ -421,8 +469,9 @@ def jit_cmux(
           rgsw_ct=control,
           rlwe_ct=neq_zero - eq_zero,
           decomposition_params=decomposition_params,
+          use_bat=use_bat,
       )
-  )
+  ).astype(jnp.uint32)
 
 
 def blind_rotate(
@@ -454,6 +503,7 @@ def blind_rotate(
       coefficient_index,
       bsk.encrypted_lwe_sk_bits,
       bsk.use_bmmp,
+      bsk.use_bat,
       rot_polynomial.log_coefficient_modulus,
       decomposition_params,
   )
@@ -465,12 +515,13 @@ def blind_rotate(
 
 
 @jax.named_call
-@functools.partial(jax.jit, static_argnums=(3, 4, 5))
+@functools.partial(jax.jit, static_argnums=(3, 4, 5, 6))
 def jit_blind_rotate(
     rot_polynomial: jnp.ndarray,
     coefficient_index: types.LweCiphertext,
     bsk: jnp.ndarray,
     use_bmmp: bool,
+    use_bat: bool,
     log_coefficient_modulus: int,
     decomposition_params: decomposition.DecompositionParameters,
 ) -> rlwe.RlweCiphertext:
@@ -513,6 +564,7 @@ def jit_blind_rotate(
           rgsw_ct=bmmp_factor,
           rlwe_ct=c_prime_accum,
           decomposition_params=decomposition_params,
+          use_bat=use_bat,
       )
       # c'_mul = c' * X^{a_j^tilde} (for each entry in c')
     else:
@@ -522,7 +574,6 @@ def jit_blind_rotate(
           coefficient_index[j],
           log_coefficient_modulus,
       ).astype(jnp.uint32)
-
       # Update c_prime with the output of the CMUX operation, where either
       # `c_prime` or `c_prime * X^{a_j^tilde}` is chosen by `bsk` at index j.
       return jit_cmux(
@@ -530,6 +581,7 @@ def jit_blind_rotate(
           eq_zero=c_prime_accum,
           neq_zero=c_prime_mul,
           decomposition_params=decomposition_params,
+          use_bat=use_bat,
       )
 
   return jax.lax.fori_loop(0, num_loop_terms, one_external_product, c_prime)

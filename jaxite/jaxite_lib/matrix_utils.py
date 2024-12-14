@@ -728,7 +728,6 @@ def toeplitz_kernelized(x: jnp.ndarray) -> jnp.ndarray:
       # produces no hardware instructions.
       chunk = pltpu.roll(chunk, 128, 1)
       chunk_row_indices = chunk_row_indices + 128
-
   return pl.pallas_call(
       _toeplitz,
       out_shape=jax.ShapeDtypeStruct((n, n), x.dtype),
