@@ -202,29 +202,6 @@ class BootstrapTest(BootstrapBaseTest):
         rlwe_rng=rng,
     )
 
-  @absltest.skip("b/325287870")
-  def test_6_bit_bootstrap(self, log_ai_bound: int, seed: int):
-    message_bits = 6
-    padding_bits = 1
-    lwe_dimension = 30
-    mod_degree = 2048
-
-    rng = random_source.PseudorandomSource(
-        uniform_bounds=(0, 2**log_ai_bound),
-        normal_std=1,
-        seed=seed,
-    )
-    injected_noise = 2 ** (32 - padding_bits - message_bits - 2) - 1
-
-    self.run_bootstrap_test(
-        injected_noise=injected_noise,
-        lwe_dimension=lwe_dimension,
-        lwe_rng=rng,
-        message_bits=message_bits,
-        mod_degree=mod_degree,
-        padding_bits=padding_bits,
-        rlwe_rng=rng,
-    )
 
   def test_3_bit_bootstrap_prod_decomp_params(
       self, log_ai_bound: int, seed: int

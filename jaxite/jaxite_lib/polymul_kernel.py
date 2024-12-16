@@ -134,6 +134,9 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
           out_specs=pl.BlockSpec((block_b, 4 * m, n), lambda b: (b, 0, 0)),
           out_shape=jax.ShapeDtypeStruct((b, 4 * m, n), jnp.int32),
           grid=(steps_b,),
+          compiler_params=dict(
+              mosaic=dict(vmem_limit_bytes=int(2**10 * 10**15))
+          ),  # set the vem limit to 32 MiB, it could be up to 128 MiB
       )(
           poly_vec1[:, None].astype(jnp.int32), poly_mat2.astype(jnp.int32)
       ).reshape(
