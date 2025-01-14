@@ -58,6 +58,40 @@ def _i32_matmul_unreduced(lhs, rhs):
   return acc
 
 
+def _i32_matmul_unreduced_CGGI(lhs, rhs):
+  """
+    Modified from i32_matmul_unreduced to incorporate CGGI tricks for better 
+    efficiency.
+  """
+  lax = jax.lax
+  m, k, n = lhs.shape[0], lhs.shape[1], rhs.shape[1]
+  lhs_i8 = jnp.broadcast_to(lhs, (2, *lhs.shape)).reshape((4, m//2, k))
+  lhs_shift = lax.broadcasted_iota(jnp.int32, lhs_i8.shape, dimension=0) * 8
+  lhs_i8 = lax.shift_right_logical(lhs_i8, lhs_shift)
+  lhs_i8 = lax.bitwise_and(lhs_i8, jnp.broadcast_to(0xFF, lhs_i8.shape))
+  lhs_i8 = lhs_i8.reshape((2 * m, k))
+
+  out_shift_base = lax.mul(
+      lax.broadcasted_iota(jnp.int32, (4, m//2, n), dimension=0), 8
+  )
+  acc = jnp.zeros((m//2, n), dtype=jnp.int32)
+  for rhs_shift in range(0, 32, 8):
+    # TODO(b/201562458): Don't multiply lhs rows with large shift.
+    rhs_i8 = lax.shift_right_logical(
+        rhs, jnp.broadcast_to(rhs_shift, rhs.shape)
+    )
+    rhs_i8 = lax.bitwise_and(rhs_i8, jnp.broadcast_to(0xFF, rhs_i8.shape))
+    # TODO(b/201562458): Use int8 matmuls once properly supported
+    raw_out = lax.dot(
+        lhs_i8.astype(jnp.bfloat16),
+        rhs_i8.astype(jnp.bfloat16),
+        preferred_element_type=jnp.float32,
+    ).astype(jnp.int32).reshape((4, m//2, n))
+    raw_out = jnp.left_shift(raw_out, out_shift_base + rhs_shift)
+    acc += raw_out[0] + raw_out[1] + raw_out[2] + raw_out[3]
+  return acc
+
+
 def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
   # b is the product of the RLWE dimension (e.g., 3) and the number of
   # decomposition levels in the decomposition parameters (e.g., 6).
@@ -77,11 +111,11 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
   m = 8
   poly_mat2 = jnp.pad(
       poly_mat2,
-      ((0, 0), (0, m - real_m), (0, 0)),
+      ((0, 0), (0, (m // 2) - real_m), (0, 0)),
       mode="constant",
       constant_values=(0,),
   )
-
+  poly_mat2 = jnp.concatenate((poly_mat2, poly_mat2), axis=(1))
   if n % 128 != 0:
     raise ValueError(f"Input size {n} is not a multiple of 128")
   dtype = poly_vec1.dtype
@@ -109,8 +143,8 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
     vec_toeplitz = jax.lax.concatenate(toeplitz_chunks, dimension=0)
 
     assert vec_toeplitz.shape == (n, n)
-    result = _i32_matmul_unreduced(mat_ref[...], vec_toeplitz)
-    assert result.shape == (4 * m, n), result.shape
+    result = _i32_matmul_unreduced_CGGI(mat_ref[...], vec_toeplitz)
+    assert result.shape == (m // 2, n), result.shape
     out_ref[...] = result
 
   def vec_mat_polymul_kernel(vec_ref, mat_ref, out_ref):
@@ -131,8 +165,8 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
               pl.BlockSpec((block_b, 1, n), lambda b: (b, 0, 0)),
               pl.BlockSpec((block_b, m, n), lambda b: (b, 0, 0)),
           ),
-          out_specs=pl.BlockSpec((block_b, 4 * m, n), lambda b: (b, 0, 0)),
-          out_shape=jax.ShapeDtypeStruct((b, 4 * m, n), jnp.int32),
+          out_specs=pl.BlockSpec((block_b, m // 2, n), lambda b: (b, 0, 0)),
+          out_shape=jax.ShapeDtypeStruct((b, m // 2, n), jnp.int32),
           grid=(steps_b,),
           compiler_params=dict(
               mosaic=dict(vmem_limit_bytes=int(2**10 * 10**15))
@@ -140,9 +174,9 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
       )(
           poly_vec1[:, None].astype(jnp.int32), poly_mat2.astype(jnp.int32)
       ).reshape(
-          b, 4, m, n
+          b, m//2, n
       ),
-      axis=(0, 1),
+      axis=(0, ),
   ).astype(jnp.uint32)[:real_m]
 
 
