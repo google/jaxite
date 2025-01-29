@@ -48,7 +48,6 @@ py_library(
 py_library(
     name = "test_utils",
     srcs = ["jaxite/jaxite_lib/test_utils.py"],
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         "@jaxite_deps_jax//:pkg",
@@ -61,9 +60,7 @@ cpu_gpu_tpu_test(
     size = "small",
     timeout = "moderate",
     srcs = ["jaxite/jaxite_lib/matrix_utils_test.py"],
-    python_version = "PY3",
     shard_count = 3,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         "@com_google_absl_py//absl/testing:absltest",
@@ -80,9 +77,7 @@ tpu_test(
     size = "large",
     timeout = "moderate",
     srcs = ["jaxite/jaxite_lib/polymul_kernel_test.py"],
-    python_version = "PY3",
     shard_count = 3,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         "@com_google_absl_py//absl/testing:absltest",
@@ -98,8 +93,6 @@ cpu_gpu_tpu_test(
     size = "small",
     timeout = "moderate",
     srcs = ["jaxite/jaxite_lib/decomposition_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         "@com_google_absl_py//absl/testing:absltest",
@@ -115,8 +108,6 @@ cpu_gpu_tpu_test(
     size = "small",
     timeout = "moderate",
     srcs = ["jaxite/jaxite_lib/encoding_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         "@com_google_absl_py//absl/testing:absltest",
@@ -132,9 +123,7 @@ cpu_gpu_tpu_test(
     size = "small",
     timeout = "moderate",
     srcs = ["jaxite/jaxite_lib/lwe_test.py"],
-    python_version = "PY3",
     shard_count = 50,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         ":test_utils",
@@ -151,8 +140,6 @@ cpu_gpu_tpu_test(
     size = "small",
     timeout = "moderate",
     srcs = ["jaxite/jaxite_lib/rlwe_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         ":test_utils",
@@ -169,9 +156,7 @@ cpu_gpu_tpu_test(
     name = "bootstrap_test",
     size = "large",
     srcs = ["jaxite/jaxite_lib/bootstrap_test.py"],
-    python_version = "PY3",
     shard_count = 50,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         ":test_utils",
@@ -187,9 +172,7 @@ cpu_gpu_tpu_test(
     name = "blind_rotate_test",
     size = "large",
     srcs = ["jaxite/jaxite_lib/blind_rotate_test.py"],
-    python_version = "PY3",
     shard_count = 10,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         "@com_google_absl_py//absl/testing:absltest",
@@ -206,8 +189,6 @@ cpu_gpu_tpu_test(
     size = "small",
     timeout = "moderate",
     srcs = ["jaxite/jaxite_lib/test_polynomial_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         "@com_google_absl_py//absl/testing:absltest",
@@ -222,9 +203,7 @@ cpu_gpu_tpu_test(
     name = "key_switch_test",
     size = "large",
     srcs = ["jaxite/jaxite_lib/key_switch_test.py"],
-    python_version = "PY3",
     shard_count = 50,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         ":test_utils",
@@ -253,9 +232,7 @@ cpu_gpu_tpu_test(
     size = "small",
     timeout = "moderate",
     srcs = ["jaxite/jaxite_lib/rgsw_test.py"],
-    python_version = "PY3",
     shard_count = 10,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         ":test_utils",
@@ -271,8 +248,6 @@ cpu_gpu_tpu_test(
 py_test(
     name = "lut_test",
     srcs = ["jaxite/jaxite_bool/lut_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":jaxite",
         "@com_google_absl_py//absl/testing:absltest",
@@ -283,9 +258,7 @@ gpu_tpu_test(
     name = "jaxite_bool_test",
     size = "large",
     srcs = ["jaxite/jaxite_bool/jaxite_bool_test.py"],
-    python_version = "PY3",
     shard_count = 50,
-    srcs_version = "PY3",
     deps = [
         ":jaxite",
         "@com_google_absl_py//absl/testing:absltest",
@@ -297,9 +270,7 @@ gpu_tpu_test(
     name = "jaxite_bool_multigate_test",
     size = "large",
     srcs = ["jaxite/jaxite_bool/jaxite_bool_multigate_test.py"],
-    python_version = "PY3",
     shard_count = 20,
-    srcs_version = "PY3",
     deps = [
         ":jaxite",
         "@com_google_absl_py//absl/testing:absltest",
@@ -311,8 +282,6 @@ multichip_tpu_test(
     name = "pmap_test",
     size = "large",
     srcs = ["jaxite/jaxite_bool/pmap_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     tags = ["manual"],
     deps = [
         ":jaxite",
