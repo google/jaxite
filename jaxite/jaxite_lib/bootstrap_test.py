@@ -22,6 +22,9 @@ _LOG_AI_BOUNDS = (0, 16, 32)
 _SEEDS = (1, 2, 3)
 
 
+@parameterized.product(
+    use_bmmp=[True, False]
+)
 class BootstrapBaseTest(parameterized.TestCase):
   """A base class for running bootstrap tests."""
 
@@ -40,6 +43,7 @@ class BootstrapBaseTest(parameterized.TestCase):
       padding_bits: int,
       rlwe_rng: random_source.RandomSource,
       skip_assert: bool = False,
+      use_bmmp: bool = True,
   ):
     cleartext = 2**message_bits - 1
     test_utils.assert_safe_modulus_switch(
@@ -77,6 +81,7 @@ class BootstrapBaseTest(parameterized.TestCase):
         rgsw_sk=rgsw_key,
         decomposition_params=test_utils.BSK_DECOMP_PARAMS_128_BIT_SECURITY,
         prg=rlwe_rng,
+        use_bmmp=use_bmmp,
     )
     ksk = key_switch.gen_key(
         in_key=rlwe.flatten_key(rlwe_key),
@@ -120,6 +125,7 @@ class BootstrapBaseTest(parameterized.TestCase):
         test_utils.KSK_DECOMP_PARAMS_128_BIT_SECURITY,
         test_utils.BSK_DECOMP_PARAMS_128_BIT_SECURITY,
         scheme_parameters,
+        bsk.use_bmmp,
     )
 
     self.assertEqual(len(jit_bootstrapped), len(bootstrapped))
@@ -147,12 +153,11 @@ class BootstrapBaseTest(parameterized.TestCase):
 
 
 @parameterized.product(
-    log_ai_bound=_LOG_AI_BOUNDS,
-    seed=_SEEDS,
+    log_ai_bound=_LOG_AI_BOUNDS, seed=_SEEDS, use_bmmp=[True, False]
 )
 class BootstrapTest(BootstrapBaseTest):
 
-  def test_3_bit_bootstrap(self, log_ai_bound, seed):
+  def test_3_bit_bootstrap(self, log_ai_bound, seed, use_bmmp):
     message_bits = 3
     padding_bits = 1
     lwe_dimension = 4
@@ -173,10 +178,11 @@ class BootstrapTest(BootstrapBaseTest):
         mod_degree=mod_degree,
         padding_bits=padding_bits,
         rlwe_rng=rng,
+        use_bmmp=use_bmmp,
     )
 
   def test_3_bit_bootstrap_larger_lwe_dimension(
-      self, log_ai_bound: int, seed: int
+      self, log_ai_bound: int, seed: int, use_bmmp: bool
   ):
     message_bits = 3
     padding_bits = 1
@@ -200,11 +206,12 @@ class BootstrapTest(BootstrapBaseTest):
         mod_degree=mod_degree,
         padding_bits=padding_bits,
         rlwe_rng=rng,
+        use_bmmp=use_bmmp,
     )
 
 
   def test_3_bit_bootstrap_prod_decomp_params(
-      self, log_ai_bound: int, seed: int
+      self, log_ai_bound: int, seed: int, use_bmmp: bool
   ):
     message_bits = 3
     padding_bits = 1
@@ -226,6 +233,7 @@ class BootstrapTest(BootstrapBaseTest):
         mod_degree=mod_degree,
         padding_bits=padding_bits,
         rlwe_rng=rng,
+        use_bmmp=use_bmmp,
     )
 
 
