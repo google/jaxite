@@ -761,7 +761,7 @@ def poly_mul(a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
 @jax.named_call
 @functools.partial(jax.jit, static_argnames="log_modulus")
 def monomial_mul(
-    poly: jnp.ndarray, degree: int, log_modulus: int
+    poly: jnp.ndarray, degree: jnp.uint32, log_modulus: jnp.uint32
 ) -> jnp.ndarray:
   """Computes `poly * X^degree mod (X^N + 1)` where N = len(poly).
 
