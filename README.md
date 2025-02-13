@@ -128,6 +128,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for details on how to contribute. The f
 -   [Rafael Misoczki](https://www.linkedin.com/in/rafael-misoczki-phd-24b33013)
 -   [Rob Springer](https://github.com/RobSpringer)
 -   [Jonathan Takeshita](https://sites.nd.edu/jonathan-takeshita/)
+-   [Jianming Tong](https://jianmingtong.github.io/)
 -   [Cameron Tew](https://github.com/cam2337)
 -   [Cathie Yun](https://github.com/cathieyun)
 
