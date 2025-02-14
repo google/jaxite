@@ -17,10 +17,10 @@ class RlwePlaintext:
   """An RLWE plaintext is a polynomial in (Z/qZ)[X] / (X^N + 1)."""
 
   # the log of the modulus q of the polynomial coefficients
-  log_coefficient_modulus: int
+  log_coefficient_modulus: jnp.uint32
 
   # the degree N of the ring modulus polynomial.
-  modulus_degree: int
+  modulus_degree: jnp.uint32
 
   # the coefficients of the polynomial,
   # starting from lowest degree to highest.
@@ -49,10 +49,10 @@ class RlweCiphertext:
   """
 
   # the log of the modulus q of the polynomial coefficients
-  log_coefficient_modulus: int
+  log_coefficient_modulus: jnp.uint32
 
   # the degree N of the ring modulus polynomial.
-  modulus_degree: int
+  modulus_degree: jnp.uint32
 
   # the polynomials, packed so each row corresponds to one polynomial, and each
   # column corresponds to a coefficient of the same degree.  The first colum is
@@ -86,13 +86,13 @@ class RlweSecretKey:
   """A secret key for the RLWE encryption scheme."""
 
   # the log of q in Z/qZ
-  log_coefficient_modulus: int
+  log_coefficient_modulus: jnp.uint32
 
   # the power of two N in the polynomial modulus x^N + 1
-  modulus_degree: int
+  modulus_degree: jnp.uint32
 
   # the number of samples chosen, equal to len(RlweCiphertext) - 1
-  rlwe_dimension: int
+  rlwe_dimension: jnp.uint32
 
   # the binary polynomial values (s_1, ..., s_{rlwe_dimension})
   # used as a dot product multiplicand when encrypting.
