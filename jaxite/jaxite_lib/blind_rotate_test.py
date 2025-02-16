@@ -206,7 +206,7 @@ class BlindRotateTest(parameterized.TestCase):
     rlwe_ct_2 = rlwe.encrypt(rlwe_pt_2, self.rlwe_key, prg=self.noise_free_rng)
 
     cmux_output = bootstrap.cmux(
-        control_ct, rlwe_ct_1, rlwe_ct_2, self.decomposition_params
+        control_ct, rlwe_ct_1, rlwe_ct_2, self.decomposition_params,
     )
     decrypted = rlwe.decrypt(
         cmux_output, self.rlwe_key, encoding_params=self.encoding

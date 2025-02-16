@@ -23,7 +23,7 @@ _SEEDS = (1, 2, 3)
 
 
 @parameterized.product(
-    use_bmmp=[True, False]
+    use_bmmp=[True, False], use_bat=[True, False],
 )
 class BootstrapBaseTest(parameterized.TestCase):
   """A base class for running bootstrap tests."""
@@ -44,7 +44,13 @@ class BootstrapBaseTest(parameterized.TestCase):
       rlwe_rng: random_source.RandomSource,
       skip_assert: bool = False,
       use_bmmp: bool = True,
+      use_bat: bool = False,
   ):
+    if use_bmmp and use_bat:
+      self.skipTest(
+          "bmmp cannot be used with BAT, because BAT requires data to be known"
+          " at compile time"
+      )
     cleartext = 2**message_bits - 1
     test_utils.assert_safe_modulus_switch(
         mod_degree, message_bits, lwe_dimension
@@ -82,6 +88,7 @@ class BootstrapBaseTest(parameterized.TestCase):
         decomposition_params=test_utils.BSK_DECOMP_PARAMS_128_BIT_SECURITY,
         prg=rlwe_rng,
         use_bmmp=use_bmmp,
+        use_bat=use_bat,
     )
     ksk = key_switch.gen_key(
         in_key=rlwe.flatten_key(rlwe_key),
@@ -126,6 +133,7 @@ class BootstrapBaseTest(parameterized.TestCase):
         test_utils.BSK_DECOMP_PARAMS_128_BIT_SECURITY,
         scheme_parameters,
         bsk.use_bmmp,
+        bsk.use_bat,
     )
 
     self.assertEqual(len(jit_bootstrapped), len(bootstrapped))
@@ -153,11 +161,20 @@ class BootstrapBaseTest(parameterized.TestCase):
 
 
 @parameterized.product(
-    log_ai_bound=_LOG_AI_BOUNDS, seed=_SEEDS, use_bmmp=[True, False]
+    log_ai_bound=_LOG_AI_BOUNDS,
+    seed=_SEEDS,
+    use_bmmp=[True, False],
+    use_bat=[True, False],
 )
 class BootstrapTest(BootstrapBaseTest):
 
-  def test_3_bit_bootstrap(self, log_ai_bound, seed, use_bmmp):
+  def test_3_bit_bootstrap(self, log_ai_bound, seed, use_bmmp, use_bat):
+    if use_bmmp and use_bat:
+      self.skipTest(
+          "bmmp cannot be used with BAT, because BAT requires data to be known"
+          " at compile time"
+      )
+
     message_bits = 3
     padding_bits = 1
     lwe_dimension = 4
@@ -179,11 +196,19 @@ class BootstrapTest(BootstrapBaseTest):
         padding_bits=padding_bits,
         rlwe_rng=rng,
         use_bmmp=use_bmmp,
+        use_bat=use_bat,
     )
 
   def test_3_bit_bootstrap_larger_lwe_dimension(
-      self, log_ai_bound: int, seed: int, use_bmmp: bool
+      self, log_ai_bound: int, seed: int, use_bmmp: bool, use_bat: bool
   ):
+    if use_bmmp and use_bat:
+      self.skipTest(
+          "bmmp cannot be used with BAT, because BAT requires data to be known"
+          " at compile time"
+      )
+    if not use_bmmp:
+      self.skipTest("BAT does not support larger LWE dimensions")
     message_bits = 3
     padding_bits = 1
     lwe_dimension = 100
@@ -207,12 +232,17 @@ class BootstrapTest(BootstrapBaseTest):
         padding_bits=padding_bits,
         rlwe_rng=rng,
         use_bmmp=use_bmmp,
+        use_bat=use_bat,
     )
 
-
   def test_3_bit_bootstrap_prod_decomp_params(
-      self, log_ai_bound: int, seed: int, use_bmmp: bool
+      self, log_ai_bound: int, seed: int, use_bmmp: bool, use_bat: bool
   ):
+    if use_bmmp and use_bat:
+      self.skipTest(
+          "bmmp cannot be used with BAT, because BAT requires data to be known"
+          " at compile time"
+      )
     message_bits = 3
     padding_bits = 1
     lwe_dimension = 30
@@ -234,6 +264,7 @@ class BootstrapTest(BootstrapBaseTest):
         padding_bits=padding_bits,
         rlwe_rng=rng,
         use_bmmp=use_bmmp,
+        use_bat=use_bat,
     )
 
 
