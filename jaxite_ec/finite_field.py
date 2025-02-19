@@ -1054,3 +1054,46 @@ def add_sub_rns_var(*values, moduli_t=utils.RNS_MODULI):
   # u2 = 0 or 1, but if u2 = 1 then l < 2**16 - t, so 2**16 - t + t < 2**16
   u2, l2 = split_view_32_to_16_8(i1)
   return jnp.add(jnp.multiply(u2, moduli_t).astype(jnp.uint16), l2)
+
+
+def construct_rns_conversion_matrix(
+    p_bytes=utils.U8_CHUNK_NUM
+):
+  """Construct the reduction matrix.
+  Args:
+    p: The modulus.
+  Returns:
+    rns_conv_mat: The rns conversion matrix.
+  Note that: this function runs on CPU of the TPU-VM, which cannot be jitted.
+  """
+  conv_mat = np.zeros((p_bytes, utils.NUM_MODULI), dtype=jnp.uint16)
+  for i in range(p_bytes):
+    placevalue = 256**i
+    conv_mat[i, :] = utils.to_rns(placevalue, utils.MODULI)
+  l, h = get_parts(conv_mat)
+  rns_conv_mat = np.hstack((l, h))
+  return rns_conv_mat
+@jax.named_call
+@functools.partial(
+    jax.jit,
+    static_argnames=("s_idx"),
+)
+def convert_to_rns(
+    values: jax.Array,
+    rns_conv_mat: jax.Array,
+    s_idx=utils.NUM_MODULI,
+):
+  """Apply matrix operation to convert to RNS.
+
+  Args:
+    values: Array of bigints.
+    rns_conv_mat: precomputed conversion matrix
+
+  Returns:
+    rns_values: values in RNS form
+  """
+  v = jnp.matmul(
+      values.view(jnp.uint8), rns_conv_mat, preferred_element_type=jnp.uint32
+  )
+  c = v[:, :s_idx] + (v[:, s_idx:] << 8)
+  return moduli_rns_red_internal_2u16(c)
