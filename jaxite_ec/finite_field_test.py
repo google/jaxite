@@ -194,7 +194,22 @@ class FiniteFieldTest(absltest.TestCase):
           c_list[i] % utils.MODULUS_377_INT,
           (a_list[i] * b_list[i]) % utils.MODULUS_377_INT,
       )
-    print("testing pass")
+
+  def test_jax_convert(self):
+    batch_size = 16
+    a_list = [randint(0, utils.MODULUS_377_INT) for _ in range(batch_size)]
+    rns_conv_matrix = ff.construct_rns_conversion_matrix(utils.U8_CHUNK_NUM)
+    a_batch = utils.int_list_to_jax_array(
+        a_list, base=utils.BASE, array_size=utils.U16_CHUNK_NUM
+    )
+    print("Test test_jax_convert", end=" ")
+    # copybara: session = xprof_session.XprofSession()
+    rns_batch = ff.convert_to_rns(a_batch, rns_conv_matrix)
+    # copybara: session_id = session.end_session_and_get_session_id()
+    # copybara: print(f'session_id: http://xprof/?session_id={session_id}')
+    # No fast conversion back unfortunately
+    a_int = utils.jax_rns_array_to_int_list(rns_batch)
+    assert(a_int == a_list)
 
 
 if __name__ == "__main__":
