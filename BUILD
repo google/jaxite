@@ -178,6 +178,22 @@ tpu_test(
     ],
 )
 
+tpu_test(
+    name = "add_test",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["jaxite_word/add_test.py"],
+    shard_count = 3,
+    deps = [
+        ":jaxite",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
+        "@jaxite_deps_jax//:pkg",
+        "@jaxite_deps_jaxlib//:pkg",
+        "@jaxite_deps_numpy//:pkg",
+    ],
+)
+
 cpu_gpu_tpu_test(
     name = "decomposition_test",
     size = "small",
