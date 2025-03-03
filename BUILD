@@ -99,7 +99,7 @@ tpu_test(
 )
 
 tpu_test(
-    name = "finite_field_test",
+    name = "jaxite_ec_finite_field_test",
     size = "large",
     timeout = "moderate",
     srcs = ["jaxite_ec/finite_field_test.py"],
@@ -179,10 +179,48 @@ tpu_test(
 )
 
 tpu_test(
+    name = "jaxite_word_ntt_test",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["jaxite/jaxite_word/ntt_test.py"],
+    shard_count = 3,
+    deps = [
+        ":jaxite",
+        # copybara: xprof_analysis_client  # buildcleaner: keep
+        # copybara: xprof_session  # buildcleaner: keep
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
+        "@jaxite_deps_gmpy2//:pkg",
+        "@jaxite_deps_jax//:pkg",
+        "@jaxite_deps_jaxlib//:pkg",
+        "@jaxite_deps_numpy//:pkg",
+    ],
+)
+
+tpu_test(
+    name = "jaxite_word_sub_test",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["jaxite/jaxite_word/sub_test.py"],
+    shard_count = 3,
+    deps = [
+        ":jaxite",
+        # copybara: xprof_analysis_client  # buildcleaner: keep
+        # copybara: xprof_session  # buildcleaner: keep
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
+        "@jaxite_deps_gmpy2//:pkg",
+        "@jaxite_deps_jax//:pkg",
+        "@jaxite_deps_jaxlib//:pkg",
+        "@jaxite_deps_numpy//:pkg",
+    ],
+)
+
+tpu_test(
     name = "add_test",
     size = "large",
     timeout = "eternal",
-    srcs = ["jaxite_word/add_test.py"],
+    srcs = ["jaxite/jaxite_word/add_test.py"],
     shard_count = 3,
     deps = [
         ":jaxite",
