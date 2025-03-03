@@ -132,8 +132,13 @@ class FiniteFieldElementBarrett(FiniteFieldElement):
   def barrett_reduction(self, x):
     # q = (x * mu) >> 2k
     q = (x * self.mu) >> self.two_k
+    print(f"x: {x}")
+    print(f"self.mu: {self.mu}")
+    print(f"self.two_k: {self.two_k}")
+    print(f"q: {q}")
     # r = x - q * prime
     r = x - q * self.prime
+    print(f"r: {r}")
     if r >= self.prime:
       r -= self.prime
     return r
