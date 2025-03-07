@@ -3,24 +3,35 @@
 from typing import List, Optional
 
 
+def bit_slice_to_uint(bit_slice: List[bool], num_bits: int) -> int:
+  """Given a bit slice of num_bits, returns a base-10 int representation."""
+  if len(bit_slice) != num_bits:
+    raise ValueError(f'Expected a {num_bits} bit representation but got: {bit_slice}.')
+  result = 0
+  for i in range(num_bits):
+    result |= (int(bit_slice[i])) << i
+  return result
+
+def uint_to_bit_slice(input_int: int, num_bits: int) -> List[bool]:
+  """Given an integer [0, 2**num_bits - 1], returns a bitwise representation."""
+  result: List[bool] = [False] * num_bits
+  for i in range(num_bits):
+    result[i] = ((input_int >> i) & 1) != 0
+  return result
+
+
 def bit_slice_to_u8(bit_slice: List[bool]) -> int:
   """Given a bit slice of length 8, returns a base-10 int representation."""
   if len(bit_slice) != 8:
     raise ValueError(f'Expected an 8-bit representation but got: {bit_slice}.')
-  result = 0
-  for i in range(8):
-    result |= (int(bit_slice[i])) << i
-  return result
+  return bit_slice_to_uint(bit_slice, 8)
 
 
 def u8_to_bit_slice(input_int: int) -> List[bool]:
   """Given an integer [0, 255], returns a bitwise representation."""
   if input_int < 0 or input_int > 255:
     raise ValueError(f'Expected a u8, but got: {input_int}.')
-  result: List[bool] = [False] * 8
-  for i in range(8):
-    result[i] = ((input_int >> i) & 1) != 0
-  return result
+  return uint_to_bit_slice(input_int, 8)
 
 
 def u8_list_to_bit_slice(input_list: List[int]) -> List[bool]:
