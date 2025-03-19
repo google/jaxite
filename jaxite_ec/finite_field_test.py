@@ -1,6 +1,7 @@
 import random
 
 import jax
+import jax.numpy as jnp
 import jaxite.jaxite_ec.algorithm.finite_field as pyff
 import jaxite.jaxite_ec.finite_field as ff
 import jaxite.jaxite_ec.util as utils
@@ -194,7 +195,73 @@ class FiniteFieldTest(absltest.TestCase):
           c_list[i] % utils.MODULUS_377_INT,
           (a_list[i] * b_list[i]) % utils.MODULUS_377_INT,
       )
-    print("testing pass")
+
+  def test_jax_mod_mul_rns_reduction(self):
+    """This test case check the jax version (TPU deployment) of the rns reduction based modular multiplication algorithm."""
+    batch_size = 16
+    a_list = [randint(0, utils.MODULUS_377_INT) for _ in range(batch_size)]
+    b_list = [randint(0, utils.MODULUS_377_INT) for _ in range(batch_size)]
+
+    modulus_lazy_mat = ff.construct_rns_matrix(utils.MODULUS_377_INT)
+    a_batch = utils.int_list_to_jax_array_rns(a_list)
+    b_batch = utils.int_list_to_jax_array_rns(b_list)
+    c_batch = ff.mod_mul_rns_2u16(a_batch, b_batch, modulus_lazy_mat)
+    c_list = utils.jax_array_rns_to_int_list(c_batch)
+    for i in range(len(a_list)):
+      np.testing.assert_equal(
+          c_list[i] % utils.MODULUS_377_INT,
+          (a_list[i] * b_list[i]) % utils.MODULUS_377_INT,
+      )
+
+  def test_jax_add_rns(self):
+    max_val = [2**16 - 1 for _ in range(utils.NUM_MODULI)]
+    max_normal_val = [m - 1 for m in utils.MODULI]
+    zero = [0 for _ in range(utils.NUM_MODULI)]
+    values = [zero, max_val, max_normal_val]
+    for a in values:
+      for b in values:
+        jax_a = jnp.array(a, dtype=np.uint16).reshape((1, utils.NUM_MODULI))
+        jax_b = jnp.array(b, dtype=np.uint16).reshape((1, utils.NUM_MODULI))
+        jax_sum = ff.add_rns_2u16(jax_a, jax_b, utils.RNS_MODULI)
+        jax_3sum = ff.add_rns_3u16(jax_a, jax_b, jax_a, utils.RNS_MODULI)
+        for i in range(utils.NUM_MODULI):
+          np.testing.assert_equal(
+              int(jax_sum[0, i]) % utils.MODULI[i],
+              (a[i] + b[i]) % utils.MODULI[i],
+          )
+          np.testing.assert_equal(
+              int(jax_3sum[0, i]) % utils.MODULI[i],
+              (a[i] + b[i] + a[i]) % utils.MODULI[i],
+          )
+
+  def test_jax_sub_rns(self):
+    batch_size = 16
+    bound = 256 * utils.NUM_MODULI * utils.MODULUS_377_INT
+    a_list = [randint(0, bound) for _ in range(batch_size)]
+    b_list = [randint(0, bound) for _ in range(batch_size)]
+    b_list[0] = bound - 1
+    a_batch = utils.int_list_to_jax_array_rns(a_list)
+    b_batch = utils.int_list_to_jax_array_rns(b_list)
+    diff = ff.add_sub_rns_var(a_batch, ff.negate_rns_for_var_add(b_batch))
+    diff_int = utils.jax_array_rns_to_int_list(diff)
+    for i in range(batch_size):
+      np.testing.assert_equal(
+          diff_int[i] % utils.MODULUS_377_INT,
+          (a_list[i] - b_list[i]) % utils.MODULUS_377_INT,
+      )
+
+  def test_jax_convert(self):
+    batch_size = 16
+    a_list = [randint(0, utils.MODULUS_377_INT) for _ in range(batch_size)]
+    rns_conv_matrix = ff.construct_rns_conversion_matrix(utils.U8_CHUNK_NUM)
+    a_batch = utils.int_list_to_jax_array(
+        a_list, base=utils.BASE, array_size=utils.U16_CHUNK_NUM
+    )
+    rns_batch = ff.convert_to_rns(a_batch, rns_conv_matrix)
+
+    # No fast conversion back unfortunately
+    a_int = utils.jax_rns_array_to_int_list(rns_batch)
+    assert a_int == a_list
 
 
 if __name__ == "__main__":

@@ -28,6 +28,7 @@ U32_CHUNK_SHIFT_BITS = 32
 
 MODULUS_377_INT = 0x01AE3A4617C510EAC63B05C06CA1493B1A22D9F300F5138F1EF3622FBA094800170B5D44300000008508C00000000001
 MU_377_INT = 0x98542343310183A5DB0F28160BBD3DCEEEB43799DDAC681ABCB52236169B40B43B5A1DE2710A9647E7F56317936BFF32
+TWIST_D = 122268283598675559488486339158635529096981886914877139579534153582033676785385790730042363341236035746924960903179
 BARRETT_SHIFT_U8 = 95  # BARRETT Params for k = 380
 CHUNK_MAX = 0xFF
 CHUNK_PRECISION = 8
@@ -41,7 +42,7 @@ COORDINATE_NUM = 4
 
 # RNS Reduction Logics
 # Hardware friendly moduli factors are 2**16 - v for v in the following list
-RNS_MODULI = [
+RNS_MODULI = (
     0,
     1,
     3,
@@ -92,16 +93,17 @@ RNS_MODULI = [
     102,
     110,
     122,
-]
+)
 
-MODULI = [
+MODULI = tuple([
     2**16 if i == 0 else 2**16 - int(i) if i % 2 == 1 else 2**15 - (int(i) // 2)
     for i in RNS_MODULI
-]
+])
 RNS_PRECISION = 16
 NUM_MODULI = len(RNS_MODULI)
 MODULI_NP = [m % 2**16 for m in MODULI]
 MODULI_SUB = [((256 * 256 * 4 * MODULUS_377_INT) - 2**16) % m for m in MODULI]
+TWIST_D_RNS = [TWIST_D % MODULI[i] for i in range(len(MODULI))]
 
 
 def print_hex_values(int_list):
@@ -280,23 +282,20 @@ def int_list_to_3d_array(int_list, base, array_size=None) -> jnp.ndarray:
   return jnp.array(result_list)
 
 
+def int_list_to_2d_array_rns(int_list) -> jnp.ndarray:
+  """Converts a list of integers to a 2D JAX array."""
+  chunked_arrays = []
+  for int_value in int_list:
+    chunked_arrays.append(int_to_array_rns(int_value))
+  return jnp.array(chunked_arrays)
+
+
 # RNS helpers
 def total_modulus(moduli):
   modulus = 1  # Compute the big modulus
   for m in moduli:
     modulus *= m
   return modulus
-
-
-def rns_precompute(moduli):
-  modulus = total_modulus(moduli)
-  precomputed = []
-  for m in moduli:
-    rest = modulus // m  # 0 mod all the other moduli
-    inverse = pow(rest % m, -1, m)  # factor to make 1 mod this moduli
-    icrt_val = (rest * inverse) % modulus  # combine
-    precomputed.append(icrt_val)
-  return precomputed
 
 
 def rns_reconstruct(residues, moduli, precomputed):

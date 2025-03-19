@@ -398,6 +398,7 @@ def mul_2u16(
     chunk_num_u16: The number of chunks in the u16 value (default: 24).
     chunk_shift_bits: The number of bits to shift the value.
     output_dtype: The desired output data type.
+    vmap_axes: The axes for vmap.
 
   Returns:
 
@@ -455,9 +456,12 @@ def mul_shift_2u16x2x1(
   Args:
     value_a: The first u16 value.
     value_b: The second u16 value.
+    mask: The mask to apply to the value.
     barrett_shift_u8: The number of bits to shift the value.
     chunk_num_u16: The number of chunks in the u16 value.
     chunk_num_u32: The number of chunks in the u32 value.
+    chunk_shift_bits: The number of bits to shift the value.
+    vmap_axes: The axes for vmap.
 
   Returns:
 
@@ -519,6 +523,7 @@ def mod_mul_barrett_2u16(
     modulus_377_int: The modulus 377.
     mu_377_int: The Barrett reduction coefficient.
     chunk_num_u16: The number of chunks in the u16 value (default: 24).
+    vmap_axes: The axes for vmap.
 
   Returns:
     value_c: The result of the multiplication.
@@ -569,6 +574,7 @@ def barrett_reduction_u16x2(
     modulus_377_int: The modulus 377.
     mu_377_int: The Barrett reduction coefficient.
     chunk_num_u16: The number of chunks in the u16 value (default: 24).
+    vmap_axes: The axes for vmap.
 
   Returns:
     value_c: The result of the Barrett reduction.
@@ -821,20 +827,28 @@ def construct_rns_matrix(p):
   return (rns_stacked_mat, cor_mat)
 
 
-def split_view_32_to_16(a: jax.Array):
-  # TODO: compare these versions?
-  # return (
-  #     np.right_shift(a, 16, dtype=np.uint16),
-  #     np.bitwise_and(a, 2**16 - 1, dtype=np.uint16),
-  # )
-  v = a.view(dtype=jnp.uint16)
-  return v[:, 1::2], v[:, ::2]
+def split_view_32_to_16(a: jnp.ndarray):
+  # Interpret each 32-bit element as two 16-bit numbers
+  # and reshape to add an extra dimension of size 2.
+  v = a.view(jnp.uint16).reshape(a.shape + (2,))
+  # Assuming little-endian storage, the lower 16 bits are at index 0
+  # and the upper 16 bits are at index 1.
+  lower = v[..., 0]
+  upper = v[..., 1]
+  return upper, lower
 
 
-def split_view_32_to_16_8(a: jax.Array):
-  l = a.view(jnp.uint16)[:, ::2]
-  ub = a.view(jnp.uint8)[:, 2::4]
-  return ub, l
+def split_view_32_to_16_8(a: jnp.ndarray):
+  # First, reshape the 32-bit integers as groups of 4 bytes.
+  v8 = a.view(jnp.uint8).reshape(a.shape + (4,))
+  # Also, reshape as 16-bit integers (2 per 32-bit element)
+  v16 = a.view(jnp.uint16).reshape(a.shape + (2,))
+  # For each 32-bit integer:
+  # v16[..., 0] gives the lower 16 bits.
+  # v8[..., 2] gives the third byte (i.e. the lower 8 bits of the upper 16 bits)
+  lower = v16[..., 0]
+  upper8 = v8[..., 2]
+  return upper8, lower
 
 
 # Reduce via RNS modulus
@@ -850,7 +864,6 @@ def moduli_rns_red_internal_2u16(vals, moduli_t=utils.RNS_MODULI):
   Returns:
     The reduced values.
   """
-  # See jaxite_ec/advanced_algorithm/rns_red.py for description
   moduli_t = jnp.array(moduli_t, dtype=jnp.uint8)
   u1, l1 = split_view_32_to_16(vals)
   i1 = jnp.add(
@@ -962,17 +975,7 @@ def add_rns_2u16(
   Returns:
     The sum of the two u16 values.
   """
-  moduli_t = jnp.array(moduli_t, dtype=jnp.uint8)
-  s = jnp.add(value_a.astype(jnp.uint32), value_b.astype(jnp.uint32))
-  # u1 = 0 or 1, but l up to 2**16 - 1
-  u1, l1 = split_view_32_to_16_8(s)
-  # i1 < 2**16 - 1 + t
-  i1 = jnp.add(
-      jnp.multiply(u1, moduli_t).astype(jnp.uint32), l1.astype(jnp.uint32)
-  )
-  # u2 = 0 or 1, but if u2 = 1 then l < t, so 2t < 2**16
-  u2, l2 = split_view_32_to_16_8(i1)
-  return jnp.add(jnp.multiply(u2, moduli_t).astype(jnp.uint16), l2)
+  return add_sub_rns_var(value_a, value_b, moduli_t=moduli_t)
 
 
 def add_rns_3u16(
@@ -1023,11 +1026,6 @@ def negate_rns_for_var_add(
 def add_sub_rns_var(*values, moduli_t=utils.RNS_MODULI):
   """Evaluate an static set of additions and subtractions.
 
-  Subtractions are implemented by calling negate_rns_for_var_add on inputs to
-  this function. Inputs should be "fresh" or multiplication outputs, and the
-  output should be used as a multiplication input. Any other usage produces
-  undefined behavior and may break correctness.
-
   Args:
     *values: A list of RNS values to accumulate
     moduli_t: The moduli for the RNS form.
@@ -1054,3 +1052,60 @@ def add_sub_rns_var(*values, moduli_t=utils.RNS_MODULI):
   # u2 = 0 or 1, but if u2 = 1 then l < 2**16 - t, so 2**16 - t + t < 2**16
   u2, l2 = split_view_32_to_16_8(i1)
   return jnp.add(jnp.multiply(u2, moduli_t).astype(jnp.uint16), l2)
+
+
+def construct_rns_conversion_matrix(p_bytes=utils.U8_CHUNK_NUM):
+  """Construct the reduction matrix.
+
+  Args:
+    p_bytes: The number of bytes in the modulus.
+
+  Returns:
+    rns_conv_mat: The rns conversion matrix.
+
+  Note that: this function runs on CPU of the TPU-VM, which cannot be jitted.
+  """
+  conv_mat = np.zeros((p_bytes, utils.NUM_MODULI), dtype=jnp.uint16)
+  for i in range(p_bytes):
+    placevalue = 256**i
+    conv_mat[i, :] = utils.to_rns(placevalue, utils.MODULI)
+  l, h = get_parts(conv_mat)
+  rns_conv_mat = np.hstack((l, h))
+  return jnp.asarray(rns_conv_mat, dtype=jnp.uint16)
+
+
+@jax.named_call
+@functools.partial(
+    jax.jit,
+    static_argnames="s_idx",
+)
+def convert_to_rns(
+    values: jax.Array,
+    rns_conv_mat: jax.Array,
+    s_idx=utils.NUM_MODULI,
+):
+  """Apply matrix operation to convert to RNS.
+
+  Args:
+    values: Array of bigints.
+    rns_conv_mat: precomputed conversion matrix
+    s_idx: The number of moduli.
+
+  Returns:
+    rns_values: values in RNS form
+  """
+  v = jnp.matmul(
+      values.view(jnp.uint8), rns_conv_mat, preferred_element_type=jnp.uint32
+  )
+  c = v[:, :s_idx] + (v[:, s_idx:] << 8)
+  return moduli_rns_red_internal_2u16(c)
+
+
+@functools.partial(
+    jax.jit,
+    static_argnames=("c", "num_moduli"),
+)
+def rns_constant(c, num_moduli=utils.NUM_MODULI):
+  assert c >= 0
+  assert c < 2**14  # small constants only please
+  return jnp.repeat(jnp.array([c], dtype=jnp.uint16), num_moduli)
