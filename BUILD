@@ -39,6 +39,8 @@ py_library(
     ),
     visibility = [":internal"],
     deps = [
+        # copybara: xprof_analysis_client  # buildcleaner: keep
+        # copybara: xprof_session  # buildcleaner: keep
         "@jaxite_deps_gmpy2//:pkg",
         "@jaxite_deps_jax//:pkg",
         "@jaxite_deps_jaxlib//:pkg",
@@ -161,10 +163,10 @@ tpu_test(
 tpu_test(
     name = "elliptic_curve_test",
     size = "large",
-    timeout = "moderate",
+    timeout = "long",
     srcs = ["jaxite_ec/elliptic_curve_test.py"],
     python_version = "PY3",
-    shard_count = 3,
+    shard_count = 16,
     srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
@@ -398,7 +400,7 @@ py_test(
     ],
 )
 
-gpu_tpu_test(
+tpu_test(
     name = "jaxite_bool_test",
     size = "large",
     srcs = ["jaxite/jaxite_bool/jaxite_bool_test.py"],
