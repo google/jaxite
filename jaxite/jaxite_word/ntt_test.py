@@ -403,8 +403,8 @@ class CKKSEvalNTTTest(parameterized.TestCase):
         dut(test_in_twisted, tf_step1, coef_step2, tf_step3)
     )
     # copybara: session_id = session.end_session_and_get_session_id()
-    print(f"session_id: http://xprof/?session_id={session_id}")
-    # copybara: client = xprof_analysis_client.XprofAnalysisClient()
+    # copybara: print(f'session_id: http://xprof/?session_id={session_id}')
+    client = xprof_analysis_client.XprofAnalysisClient()
     trace = client.get_profile_data("trace_viewer.json", session_id)
     jtrace = json.loads(trace[1])
     results = []
@@ -569,8 +569,8 @@ class CKKSEvalNTTTest(parameterized.TestCase):
         dut(test_in_twisted, tf_step1, coef_step2, tf_step3)
     )
     # copybara: session_id = session.end_session_and_get_session_id()
-    print(f"session_id: http://xprof/?session_id={session_id}")
-    # copybara: client = xprof_analysis_client.XprofAnalysisClient()
+    # copybara: print(f'session_id: http://xprof/?session_id={session_id}')
+    client = xprof_analysis_client.XprofAnalysisClient()
     trace = client.get_profile_data("trace_viewer.json", session_id)
     jtrace = json.loads(trace[1])
     results = []

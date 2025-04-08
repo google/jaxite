@@ -31,12 +31,14 @@ import functools
 
 import jax
 import jax.numpy as jnp
-from jaxite.jaxite_ec import util
+import jaxite.jaxite_ec.util as utils
 import numpy as np
 
-
-total_modulus = util.total_modulus
-to_rns = util.to_rns
+total_modulus = utils.total_modulus
+to_rns = utils.to_rns
+rns_precompute = utils.rns_precompute
+gen_rns = utils.gen_rns
+ceil_div = utils.ceil_div
 
 
 jax.config.update("jax_enable_x64", True)
@@ -48,9 +50,9 @@ jax.config.update("jax_enable_x64", True)
 )
 def carry_add(
     value_c: jax.Array,
-    iter_num=util.U16_CHUNK_NUM,
-    mask=util.U16_MASK,
-    chunk_shift_bits=util.U16_CHUNK_SHIFT_BITS,
+    iter_num=utils.U16_CHUNK_NUM,
+    mask=utils.U16_MASK,
+    chunk_shift_bits=utils.U16_CHUNK_SHIFT_BITS,
 ):
   """The purpose of this API is to enable general-purposed carry add, where the following knobs are known before runtime.
 
@@ -79,7 +81,7 @@ def carry_add(
 @functools.partial(jax.jit, static_argnames="chunk_shift_bits")
 def check_any_chunk_with_carry(
     value_c: jax.Array,
-    chunk_shift_bits=util.U16_CHUNK_SHIFT_BITS,
+    chunk_shift_bits=utils.U16_CHUNK_SHIFT_BITS,
 ) -> jax.Array:
   """This function check whether any chunk of input vector 'value_c' has carry.
 
@@ -102,8 +104,8 @@ def check_any_chunk_with_carry(
 @functools.partial(jax.jit, static_argnames=("mask", "chunk_shift_bits"))
 def carry_propagation(
     value_c: jax.Array,
-    mask=util.U16_MASK,
-    chunk_shift_bits=util.U16_CHUNK_SHIFT_BITS,
+    mask=utils.U16_MASK,
+    chunk_shift_bits=utils.U16_CHUNK_SHIFT_BITS,
 ):
   """The purpose of this API is to enable carry propagation.
 
@@ -120,19 +122,9 @@ def carry_propagation(
   Returns:
     value_c: The value after carry adding.
   """
-  precision_dim = value_c.shape[-1]
-  roll_mat = jnp.array(
-      [0, 1]
-      + ([0] * (precision_dim) + [1]) * (precision_dim - 2)
-      + [1]
-      + [0] * (precision_dim - 1),
-      dtype=jnp.uint16,
-  ).reshape(precision_dim, precision_dim)
   low = jnp.bitwise_and(value_c, mask)
-  high = jnp.right_shift(value_c, chunk_shift_bits).astype(jnp.uint16)
-  high = jnp.matmul(high, roll_mat, preferred_element_type=jnp.uint32).astype(
-      jnp.uint16
-  )
+  high = jnp.right_shift(value_c, chunk_shift_bits)
+  high = jnp.roll(high, 1)
   value_c = jnp.add(low, high)
   return value_c
 
@@ -159,7 +151,9 @@ def conv_1d_2u16xn(value_a: jax.Array, value_b: jax.Array):
 
 @jax.named_call
 @functools.partial(jax.jit, static_argnames=("chunk_num_u16", "chunk_num_u32"))
-def rechunkify(mul_result: jax.Array, chunk_num_u16, chunk_num_u32):
+def chunk_reduction_after_conv(
+    mul_result: jax.Array, chunk_num_u16, chunk_num_u32
+):
   """Given the carry add takes O(C) algorithm complexity, where C is the number of chunks.
 
   This function performs chunk reduction for ther results of the convolution,
@@ -195,7 +189,7 @@ def rechunkify(mul_result: jax.Array, chunk_num_u16, chunk_num_u32):
 @jax.named_call
 @functools.partial(jax.jit, static_argnames="chunk_num_u16")
 def compare_u16(
-    value_a: jax.Array, value_b: jax.Array, chunk_num_u16=util.U16_CHUNK_NUM
+    value_a: jax.Array, value_b: jax.Array, chunk_num_u16=utils.U16_CHUNK_NUM
 ):
   """Compare two u16 values.
 
@@ -236,7 +230,6 @@ def add_2u16(value_a: jax.Array, value_b: jax.Array):
   value_c = jax.lax.while_loop(
       check_any_chunk_with_carry, carry_propagation, value_c
   )
-
   return value_c.astype(jnp.uint16)
 
 
@@ -250,7 +243,6 @@ def add_3u16(value_a: jax.Array, value_b: jax.Array, value_d: jax.Array):
   value_c = jax.lax.while_loop(
       check_any_chunk_with_carry, carry_propagation, value_c
   )
-
   return value_c.astype(jnp.uint16)
 
 
@@ -259,8 +251,8 @@ def add_3u16(value_a: jax.Array, value_b: jax.Array, value_d: jax.Array):
 def sub_2u16(
     value_a: jax.Array,
     value_b: jax.Array,
-    mask=util.U16_MASK,
-    chunk_num_u16=util.U16_CHUNK_NUM,
+    mask=utils.U16_MASK,
+    chunk_num_u16=utils.U16_CHUNK_NUM,
 ):
   """Subtract two u16 values.
 
@@ -297,20 +289,20 @@ def sub_2u16(
   return value_c
 
 
-@jax.named_call
-@functools.partial(
-    jax.jit, static_argnames=("modulus_377_int_chunk", "chunk_num_u16")
-)
+# @jax.named_call
+# @functools.partial(
+#     jax.jit, static_argnames=("modulus_377_int", "chunk_num_u16")
+# )
 def cond_sub_mod_u16(
     value_a: jax.Array,
-    modulus_377_int_chunk=util.MODULUS_377_INT_CHUNK,
-    chunk_num_u16=util.U16_CHUNK_NUM,
+    modulus_377_int=utils.MODULUS_377_INT,
+    chunk_num_u16=utils.U16_CHUNK_NUM,
 ):
   """Perform conditional subtraction: value_a - modulus_377_int.
 
   Args:
     value_a: The minuend.
-    modulus_377_int_chunk: The modulus 377.
+    modulus_377_int: The modulus 377.
     chunk_num_u16: The number of chunks in the u16 value (default: 24).
 
   Returns:
@@ -320,7 +312,14 @@ def cond_sub_mod_u16(
       compare_u16, chunk_num_u16=chunk_num_u16
   )
   sub_2u16_local = functools.partial(sub_2u16, chunk_num_u16=chunk_num_u16)
-  modulus_377_int_array = jnp.asarray(modulus_377_int_chunk, jnp.uint16)
+  if value_a.shape[0] > 1:
+    # Input is batch (Vector, Constant)
+    compare_u16_local = jax.vmap(compare_u16_local, in_axes=(0, None))
+    sub_2u16_local = jax.vmap(sub_2u16_local, in_axes=(0, None))
+
+  modulus_377_int_array = utils.int_to_array(
+      modulus_377_int, 16, jnp.uint16, chunk_num_u16
+  )
 
   cond = compare_u16_local(value_a, modulus_377_int_array)
   value_b = sub_2u16_local(value_a, modulus_377_int_array)
@@ -331,26 +330,28 @@ def cond_sub_mod_u16(
 
 @jax.named_call
 @functools.partial(
-    jax.jit, static_argnames=("modulus_377_int_chunk", "chunk_num_u16")
+    jax.jit, static_argnames=("modulus_377_int", "chunk_num_u16")
 )
 def cond_sub_2u16(
     value_a: jax.Array,
     value_b: jax.Array,
-    modulus_377_int_chunk=util.MODULUS_377_INT_CHUNK,
-    chunk_num_u16=util.U16_CHUNK_NUM,
+    modulus_377_int=utils.MODULUS_377_INT,
+    chunk_num_u16=utils.U16_CHUNK_NUM,
 ):
   """Perform conditional subtraction: value_a - value_b.
 
   Args:
     value_a: The minuend.
     value_b: The subtrahend.
-    modulus_377_int_chunk: The modulus 377.
+    modulus_377_int: The modulus 377.
     chunk_num_u16: The number of chunks in the u16 value (default: 24).
 
   Returns:
     value_c: The result of the conditional subtraction.
   """
-  modulus_377_int_array = jnp.asarray(modulus_377_int_chunk, jnp.uint16)
+  modulus_377_int_array = utils.int_to_array(
+      modulus_377_int, 16, jnp.uint16, chunk_num_u16
+  )
   compare_u16_local = functools.partial(
       compare_u16, chunk_num_u16=chunk_num_u16
   )
@@ -382,9 +383,9 @@ def cond_sub_2u16(
 def mul_2u16(
     value_a: jax.Array,
     value_b: jax.Array,
-    mask=util.U32_MASK,
-    chunk_num_u16=util.U16_CHUNK_NUM,
-    chunk_shift_bits=util.U32_CHUNK_SHIFT_BITS,
+    mask=utils.U32_MASK,
+    chunk_num_u16=utils.U16_CHUNK_NUM,
+    chunk_shift_bits=utils.U32_CHUNK_SHIFT_BITS,
     output_dtype=jnp.uint16,
     vmap_axes=(0, 0),
 ):
@@ -397,7 +398,7 @@ def mul_2u16(
     chunk_num_u16: The number of chunks in the u16 value (default: 24).
     chunk_shift_bits: The number of bits to shift the value.
     output_dtype: The desired output data type.
-    vmap_axes: The axes to use for vmap.
+    vmap_axes: The axes for vmap.
 
   Returns:
 
@@ -408,7 +409,9 @@ def mul_2u16(
   batch_dim = value_a.shape[0]
   mul_result = jax.vmap(conv_1d_2u16xn, in_axes=vmap_axes)(value_a, value_b)
   mul_result = jnp.pad(mul_result, ((0, 0), (0, 1)))
-  value_c = rechunkify(mul_result, 2 * chunk_num_u16, chunk_num_u16)
+  value_c = chunk_reduction_after_conv(
+      mul_result, 2 * chunk_num_u16, chunk_num_u16
+  )
 
   value_c = jax.lax.while_loop(
       functools.partial(
@@ -441,12 +444,12 @@ def mul_2u16(
 def mul_shift_2u16x2x1(
     value_a: jax.Array,
     value_b: jax.Array,
-    mask=util.U32_MASK,
-    barrett_shift_u8=util.BARRETT_SHIFT_U8,
-    chunk_num_u16=util.U16_CHUNK_NUM,
-    chunk_num_u32=util.U32_CHUNK_NUM,
-    chunk_shift_bits=util.U32_CHUNK_SHIFT_BITS,
-    vmap_axes=(0, None),
+    mask=utils.U32_MASK,
+    barrett_shift_u8=utils.BARRETT_SHIFT_U8,
+    chunk_num_u16=utils.U16_CHUNK_NUM,
+    chunk_num_u32=utils.U32_CHUNK_NUM,
+    chunk_shift_bits=utils.U32_CHUNK_SHIFT_BITS,
+    vmap_axes=(0, None),  # ToDo: Why is this None?
 ):
   """Multiply and shift two u16 values.
 
@@ -458,7 +461,7 @@ def mul_shift_2u16x2x1(
     chunk_num_u16: The number of chunks in the u16 value.
     chunk_num_u32: The number of chunks in the u32 value.
     chunk_shift_bits: The number of bits to shift the value.
-    vmap_axes: (0, None) means axis 0 is the mapped access, and The rest is not.
+    vmap_axes: The axes for vmap.
 
   Returns:
 
@@ -469,7 +472,9 @@ def mul_shift_2u16x2x1(
   batch_dim = value_a.shape[0]
   conv = jax.vmap(conv_1d_2u16xn, in_axes=vmap_axes)(value_a, value_b)
   conv = jnp.pad(conv, ((0, 0), (0, 1)))
-  value_c = rechunkify(conv, chunk_num_u16 * 3, chunk_num_u32 * 3)
+  value_c = chunk_reduction_after_conv(
+      conv, chunk_num_u16 * 3, chunk_num_u32 * 3
+  )
   value_c = jax.lax.while_loop(
       functools.partial(
           check_any_chunk_with_carry, chunk_shift_bits=chunk_shift_bits
@@ -494,8 +499,8 @@ def mul_shift_2u16x2x1(
     jax.jit,
     static_argnames=(
         "mask",
-        "modulus_377_int_chunk",
-        "mu_377_int_chunk",
+        "modulus_377_int",
+        "mu_377_int",
         "chunk_num_u16",
         "vmap_axes",
     ),
@@ -503,10 +508,10 @@ def mul_shift_2u16x2x1(
 def mod_mul_barrett_2u16(
     value_a: jax.Array,
     value_b: jax.Array,
-    mask=util.U16_MASK,
-    modulus_377_int_chunk=util.MODULUS_377_INT_CHUNK,
-    mu_377_int_chunk=util.MU_377_INT_CHUNK,
-    chunk_num_u16=util.U16_CHUNK_NUM,
+    mask=utils.U16_MASK,
+    modulus_377_int=utils.MODULUS_377_INT,
+    mu_377_int=utils.MU_377_INT,
+    chunk_num_u16=utils.U16_CHUNK_NUM,
     vmap_axes=(0, None),
 ):
   """Multiply two u16 values with Barrett reduction.
@@ -515,16 +520,20 @@ def mod_mul_barrett_2u16(
     value_a: The first u16 value.
     value_b: The second u16 value.
     mask: The mask to apply to the value.
-    modulus_377_int_chunk: The modulus 377.
-    mu_377_int_chunk: The Barrett reduction coefficient.
+    modulus_377_int: The modulus 377.
+    mu_377_int: The Barrett reduction coefficient.
     chunk_num_u16: The number of chunks in the u16 value (default: 24).
-    vmap_axes: The axes to use for vmap.
+    vmap_axes: The axes for vmap.
 
   Returns:
     value_c: The result of the multiplication.
   """
-  modulus_377_int_array = jnp.asarray(modulus_377_int_chunk, jnp.uint16)
-  mu_377_int_array = jnp.asarray(mu_377_int_chunk, jnp.uint16)
+  modulus_377_int_array = utils.int_to_array(
+      modulus_377_int, 16, jnp.uint16, chunk_num_u16
+  )
+  mu_377_int_array = utils.int_to_array(
+      mu_377_int, 16, jnp.uint16, chunk_num_u16
+  )
 
   mul_2u16_const = functools.partial(mul_2u16, vmap_axes=vmap_axes)
   sub_2u16_const = functools.partial(
@@ -533,7 +542,7 @@ def mod_mul_barrett_2u16(
   value_x = mul_2u16(value_a, value_b)
   value_d = mul_shift_2u16x2x1(value_x, mu_377_int_array)
   value_e = mul_2u16_const(value_d, modulus_377_int_array)
-  value_t = sub_2u16_const(value_x, value_e)
+  value_t = jax.vmap(sub_2u16_const, in_axes=0, out_axes=0)(value_x, value_e)
   value_c = cond_sub_mod_u16(value_t[:, :chunk_num_u16])
   return value_c
 
@@ -543,18 +552,18 @@ def mod_mul_barrett_2u16(
     jax.jit,
     static_argnames=(
         "mask",
-        "modulus_377_int_chunk",
-        "mu_377_int_chunk",
+        "modulus_377_int",
+        "mu_377_int",
         "chunk_num_u16",
         "vmap_axes",
     ),
 )
 def barrett_reduction_u16x2(
     value_x: jax.Array,
-    mask=util.U16_MASK,
-    modulus_377_int_chunk=util.MODULUS_377_INT_CHUNK,
-    mu_377_int_chunk=util.MU_377_INT_CHUNK,
-    chunk_num_u16=util.U16_CHUNK_NUM,
+    mask=utils.U16_MASK,
+    modulus_377_int=utils.MODULUS_377_INT,
+    mu_377_int=utils.MU_377_INT,
+    chunk_num_u16=utils.U16_CHUNK_NUM,
     vmap_axes=(0, None),
 ):
   """Performs Barrett reduction on a u16x2 value.
@@ -562,16 +571,20 @@ def barrett_reduction_u16x2(
   Args:
     value_x: The u16x2 value to perform Barrett reduction on.
     mask: The mask to apply to the value.
-    modulus_377_int_chunk: The modulus 377.
-    mu_377_int_chunk: The Barrett reduction coefficient.
+    modulus_377_int: The modulus 377.
+    mu_377_int: The Barrett reduction coefficient.
     chunk_num_u16: The number of chunks in the u16 value (default: 24).
-    vmap_axes: The axes to use for vmap.
+    vmap_axes: The axes for vmap.
 
   Returns:
     value_c: The result of the Barrett reduction.
   """
-  modulus_377_int_array = jnp.asarray(modulus_377_int_chunk, jnp.uint16)
-  mu_377_int_array = jnp.asarray(mu_377_int_chunk, jnp.uint16)
+  modulus_377_int_array = utils.int_to_array(
+      modulus_377_int, 16, jnp.uint16, chunk_num_u16
+  )
+  mu_377_int_array = utils.int_to_array(
+      mu_377_int, 16, jnp.uint16, chunk_num_u16
+  )
 
   mul_2u16_const = functools.partial(mul_2u16, vmap_axes=vmap_axes)
   value_d = mul_shift_2u16x2x1(value_x, mu_377_int_array)
@@ -581,23 +594,44 @@ def barrett_reduction_u16x2(
   return value_c
 
 
+# Lazy Reduction Related Operations
+def construct_lazy_matrix(
+    p, chunk_precision=8, chunk_num_u8=utils.U8_CHUNK_NUM
+):
+  """Construct the lazy matrix.
+
+  Args:
+    p: The modulus.
+    chunk_precision: The chunk precision.
+    chunk_num_u8: The number of chunks in the u8 value.
+
+  Returns:
+    lazy_mat: The lazy matrix.
+
+  Note that: this function runs on CPU of the TPU-VM, which cannot be jitted.
+  """
+  jax.config.update("jax_enable_x64", True)
+  lazy_mat_list = []
+  for i in range(chunk_num_u8 + 4):
+    val = int(int(256) ** (chunk_num_u8 + i)) % p
+    lazy_mat_list.append(
+        utils.int_to_array(val, chunk_precision, array_size=chunk_num_u8)
+    )
+  return jnp.array(lazy_mat_list)
+
+
 @jax.named_call
 @functools.partial(
     jax.jit,
-    static_argnames=(
-        "modulus_lazy_mat",
-        "mask",
-        "chunk_num_u8",
-        "chunk_shift_bits",
-    ),
+    static_argnames=("mask", "chunk_num_u8", "chunk_shift_bits"),
 )
 def mod_mul_lazy_2u16(
     value_a,
     value_b,
-    modulus_lazy_mat=util.MODULUS_377_LAZY_MAT,
-    mask=util.U32_MASK,
-    chunk_num_u8=util.U8_CHUNK_NUM,
-    chunk_shift_bits=util.U32_CHUNK_SHIFT_BITS,
+    modulus_lazy_mat,
+    mask=utils.U32_MASK,
+    chunk_num_u8=utils.U8_CHUNK_NUM,
+    chunk_shift_bits=utils.U32_CHUNK_SHIFT_BITS,
 ):
   """Multiply two u16 values with lazy matrix reduction.
 
@@ -613,12 +647,11 @@ def mod_mul_lazy_2u16(
     value_c: The result of the multiplication.
   """
   batch_dim = value_a.shape[0]
-  modulus_lazy_mat = jnp.asarray(modulus_lazy_mat, dtype=jnp.uint16)
   mul_2u8 = functools.partial(
       mul_2u16,
-      mask=util.U32_MASK,
-      chunk_num_u16=util.U16_EXT_CHUNK_NUM,
-      chunk_shift_bits=util.U32_CHUNK_SHIFT_BITS,
+      mask=utils.U32_MASK,
+      chunk_num_u16=utils.U16_EXT_CHUNK_NUM,
+      chunk_shift_bits=utils.U32_CHUNK_SHIFT_BITS,
       output_dtype=jnp.uint8,
   )
   value_c = mul_2u8(value_a, value_b)
@@ -633,7 +666,7 @@ def mod_mul_lazy_2u16(
   value_c_reduced = jnp.add(
       standard_product_low.astype(jnp.uint32), reduced.astype(jnp.uint32)
   )
-  value_c_reduced_u32 = rechunkify(
+  value_c_reduced_u32 = chunk_reduction_after_conv(
       value_c_reduced, chunk_num_u8 // 2, chunk_num_u8 // 4
   )
   value_c_reduced_u32 = jnp.pad(value_c_reduced_u32, ((0, 0), (0, 1)))
@@ -650,8 +683,148 @@ def mod_mul_lazy_2u16(
 
   value_c_u16 = jax.lax.bitcast_convert_type(
       value_c_carried.astype(jnp.uint32), jnp.uint16
-  ).reshape(batch_dim, -1)[:, : util.U16_EXT_CHUNK_NUM]
+  ).reshape(batch_dim, -1)[:, : utils.U16_EXT_CHUNK_NUM]
   return value_c_u16
+
+
+def gen_precompute_int(moduli_info, target_modulus, num_words=2):
+  """Generate precompute integer.
+
+  Args:
+    moduli_info: The moduli info.
+    target_modulus: The target modulus.
+    num_words: The number of words.
+
+  Returns:
+    precompute: The precompute integer.
+  """
+  moduli = [x[0] for x in moduli_info]
+  modulus = total_modulus(moduli)
+  icrt_factors = rns_precompute(moduli)
+  shifted_icrt_factors = [
+      [((256**j) * i) % modulus for i in icrt_factors] for j in range(num_words)
+  ]
+  target_shifted_icrt_factors = [
+      [f % target_modulus for f in r] for r in shifted_icrt_factors
+  ]
+  # Precision required to correct quotient
+  # The maximum possible value of k
+  max_k = (sum([sum(f) for f in shifted_icrt_factors]) * 255) // modulus
+  # Precision required to compute
+  precision_requirement = max_k.bit_length() + 2
+  fixed_point = 2**precision_requirement
+  shifted_quotient_estimations = [
+      [ceil_div(p * fixed_point, modulus) for p in f]
+      for f in shifted_icrt_factors
+  ]
+  rns_values = [
+      [to_rns(f, moduli) for f in r] for r in target_shifted_icrt_factors
+  ]
+  correction = to_rns(-modulus % target_modulus, moduli)
+  return (
+      rns_values,
+      correction,
+      shifted_quotient_estimations,
+      precision_requirement,
+      moduli_info,
+  )
+
+
+def get_parts(u16mat):
+  assert u16mat.dtype == np.uint16
+  u16bytes = u16mat.view(np.uint8)
+  return [u16bytes[:, ::2], u16bytes[:, 1::2]]
+
+
+def prepare_moduli(moduli_info):
+  """Prepare the moduli for RNS reduction.
+
+  Args:
+    moduli_info: The moduli info.
+
+  Returns:
+    moduli: The moduli.
+    moduli_t: The moduli for the target.
+  """
+  moduli = jnp.array(
+      [0 if v[0] == 2**16 else v[0] for v in moduli_info], dtype=np.uint16
+  )
+  moduli_t = jnp.array(
+      [v[2] if v[1] == 16 else 2 * v[2] for v in moduli_info], dtype=np.uint8
+  )
+  return (moduli, moduli_t)
+
+
+def precompute_to_matrix(precompute):
+  """Convert precompute tuple to matrix.
+
+  Args:
+    precompute: The precompute tuple.
+
+  Returns:
+    (rns_stacked_mat, cor_mat), s_idx, precision_requirement, moduli_t
+  """
+  (
+      rns_values,
+      correction,
+      shifted_quotient_estimations,
+      precision_requirement,
+      moduli_info,
+  ) = precompute
+  num_bytes = len(rns_values)
+  num_residues = len(rns_values[0])
+  residuedim = len(rns_values[0][0])
+  flatdim = num_bytes * num_residues
+  rns_mat = jnp.zeros((flatdim, residuedim), dtype=jnp.uint16)
+  sqe_mat = jnp.zeros((flatdim, 1), dtype=jnp.uint16)
+  cor_mat = jnp.zeros((1, residuedim), dtype=jnp.uint16)
+  for i in range(num_residues):
+    for j in range(num_bytes):
+      flat_idx = num_bytes * i + j
+      for k in range(residuedim):
+        rns_mat = rns_mat.at[flat_idx, k].set(rns_values[j][i][k])
+      sqe_mat = sqe_mat.at[flat_idx, 0].set(shifted_quotient_estimations[j][i])
+    cor_mat = cor_mat.at[0, i].set(correction[i])
+  [rns_l, rns_u] = get_parts(rns_mat)
+  [sqe_l, sqe_u] = get_parts(sqe_mat)
+
+  _, cols = rns_l.shape
+  s_idx = cols
+  rns_stacked_mat = np.hstack(
+      (np.hstack((rns_l, sqe_l)), np.hstack((rns_u, sqe_u)))
+  )
+  _, moduli_t = prepare_moduli(moduli_info)
+  return (rns_stacked_mat, cor_mat), s_idx, precision_requirement, moduli_t
+
+
+# Offline precomputation of RNS matrix
+def construct_rns_matrix(p):
+  """Construct the reduction matrix.
+
+  Args:
+    p: The modulus.
+
+  Returns:
+    rns_mat: The rns matrix.
+
+  Note that: this function runs on CPU of the TPU-VM, which cannot be jitted.
+  """
+  rns_moduli = jnp.array(utils.RNS_MODULI, dtype=jnp.uint8)
+  moduli = gen_rns(16, p * p * 256 * 256 * 50 * 50 * 4 * 2)
+  # Parameters hardcoded back into utils
+  assert len(moduli) == utils.NUM_MODULI
+  for i, m in enumerate(moduli):
+    assert m[1] == 16 or m[1] == 15
+    if m[1] == 16:
+      assert m[2] % (2**16) == rns_moduli[i]
+    elif m[1] == 15:
+      assert m[2] * 2 == rns_moduli[i]
+  precompute = precompute_to_matrix(gen_precompute_int(moduli, p))
+  (rns_stacked_mat, cor_mat), s_idx, precision, _ = precompute
+  assert s_idx == utils.NUM_MODULI
+  assert precision == utils.RNS_PRECISION
+  # I need to return 2 matrices (3 if you count moduli_t as a matrix)
+  return (rns_stacked_mat, cor_mat)
 
 
 def split_view_32_to_16(a: jnp.ndarray):
@@ -680,11 +853,8 @@ def split_view_32_to_16_8(a: jnp.ndarray):
 
 # Reduce via RNS modulus
 @jax.named_call
-@functools.partial(
-    jax.jit,
-    static_argnames="moduli_t",
-)
-def moduli_rns_red_internal_2u16(vals, moduli_t=util.RNS_MODULI_T):
+@functools.partial(jax.jit)
+def moduli_rns_red_internal_2u16(vals, moduli_t=utils.RNS_MODULI):
   """Reduce via RNS modulus.
 
   Args:
@@ -694,17 +864,16 @@ def moduli_rns_red_internal_2u16(vals, moduli_t=util.RNS_MODULI_T):
   Returns:
     The reduced values.
   """
-  # See jaxite_ec/advanced_algorithm/rns_red.py for description
   moduli_t = jnp.array(moduli_t, dtype=jnp.uint8)
   u1, l1 = split_view_32_to_16(vals)
   i1 = jnp.add(
       l1.astype(jnp.uint32),
-      jnp.multiply(u1.astype(jnp.uint32), moduli_t),
+      jnp.multiply(u1.astype(jnp.uint32), moduli_t.astype(jnp.uint32)),
   )
   u2, l2 = split_view_32_to_16_8(i1)
   i2 = jnp.add(
       l2.astype(jnp.uint32),
-      jnp.multiply(u2.astype(jnp.uint16), moduli_t).astype(
+      jnp.multiply(u2.astype(jnp.uint16), moduli_t.astype(jnp.uint16)).astype(
           jnp.uint32
       ),
   )
@@ -717,64 +886,49 @@ def moduli_rns_red_internal_2u16(vals, moduli_t=util.RNS_MODULI_T):
 @jax.named_call
 @functools.partial(
     jax.jit,
-    static_argnames=("rns_mat", "moduli_t", "num_moduli", "precision"),
+    static_argnames=("s_idx", "precision"),
 )
 def mod_red_rns_2u16(
     c_rns_reduced,
-    rns_mat=util.RNS_MAT,
-    moduli_t=util.RNS_MODULI_T,
-    num_moduli=util.NUM_MODULI,
-    precision=util.RNS_PRECISION,
+    modulus_rns_mat,
+    moduli_t=utils.RNS_MODULI,
+    s_idx=utils.NUM_MODULI,
+    precision=utils.RNS_PRECISION,
 ):
   """Reduce via RNS modulus.
 
   Args:
     c_rns_reduced: The values to reduce.
-    rns_mat: The RNS precompute.
+    modulus_rns_mat: The RNS precompute.
     moduli_t: The moduli for the target.
-    num_moduli: The number of moduli.
+    s_idx: The number of moduli.
     precision: The precision.
 
   Returns:
     The reduced values.
   """
-  rns_stacked_mat = jnp.array(rns_mat[0], jnp.uint8)
-  cor_mat = jnp.array(rns_mat[1], jnp.uint16)
-
+  moduli_t = jnp.array(moduli_t, dtype=jnp.uint8)
+  (rns_stacked_mat, cor_mat) = modulus_rns_mat
   c_target = jnp.matmul(
       c_rns_reduced.view(jnp.uint8),
       rns_stacked_mat,
       preferred_element_type=jnp.uint32,
   )
-
-  mul_res_glb_red_u32 = c_target.reshape(*c_target.shape[:-1], -1, 2)
-  mul_res_glb_red_u32 = mul_res_glb_red_u32[..., 0] + (
-      mul_res_glb_red_u32[..., 1] << 8
-  )
-  rns_reduce_u32, qe_u32 = jnp.split(
-      mul_res_glb_red_u32, [num_moduli], axis=1
-  )
-
-  # obtain the high 32 bits from the quotient estimation results qe_u32
-  k = (qe_u32 >> precision).astype(jnp.uint16)
-  c_corrected = rns_reduce_u32 + jnp.matmul(
+  c = c_target[:, : s_idx + 1] + (c_target[:, s_idx + 1 :] << 8)
+  k = (c[:, s_idx : s_idx + 1] >> precision).astype(jnp.uint16)
+  c_corrected = c[:, :s_idx] + jnp.matmul(
       k, cor_mat, preferred_element_type=jnp.uint32
   )
-
   return moduli_rns_red_internal_2u16(c_corrected, moduli_t)
 
 
 # Multiply, without reducing
-@jax.named_call
-@functools.partial(
-    jax.jit,
-    static_argnames="moduli_t",
-)
 def mul_unreduced_rns_2u16(
     value_a,
     value_b,
-    moduli_t=util.RNS_MODULI_T,
+    moduli_t=utils.RNS_MODULI,
 ):
+  moduli_t = jnp.array(moduli_t, dtype=jnp.uint8)
   ab = jnp.multiply(value_a.astype(jnp.uint32), value_b.astype(jnp.uint32))
   return moduli_rns_red_internal_2u16(ab, moduli_t)
 
@@ -783,38 +937,33 @@ def mul_unreduced_rns_2u16(
 @jax.named_call
 @functools.partial(
     jax.jit,
-    static_argnames=("rns_mat", "moduli_t"),
 )
 def mod_mul_rns_2u16(
     value_a,
     value_b,
-    rns_mat=util.RNS_MAT,
-    moduli_t=util.RNS_MODULI_T,
+    modulus_rns_mat,
+    moduli_t=utils.RNS_MODULI,
 ):
   """Multiply two u16 values with RNS reduction.
 
   Args:
     value_a: The first u16 value.
     value_b: The second u16 value.
-    rns_mat: The RNS precompute.
+    modulus_rns_mat: The RNS precompute.
     moduli_t: The moduli for the target.
 
   Returns:
     The product of the two u16 values.
   """
+  moduli_t = jnp.array(moduli_t, dtype=jnp.uint8)
   ab = mul_unreduced_rns_2u16(value_a, value_b, moduli_t)
-  return mod_red_rns_2u16(ab, rns_mat, moduli_t)
+  return mod_red_rns_2u16(ab, modulus_rns_mat, moduli_t)
 
 
-@jax.named_call
-@functools.partial(
-    jax.jit,
-    static_argnames="moduli_t",
-)
 def add_rns_2u16(
     value_a: jax.Array,
     value_b: jax.Array,
-    moduli_t=util.RNS_MODULI_T,
+    moduli_t=utils.RNS_MODULI,
 ):
   """Add two u16 values with RNS reduction.
 
@@ -829,16 +978,11 @@ def add_rns_2u16(
   return add_sub_rns_var(value_a, value_b, moduli_t=moduli_t)
 
 
-@jax.named_call
-@functools.partial(
-    jax.jit,
-    static_argnames="moduli_t",
-)
 def add_rns_3u16(
     value_a: jax.Array,
     value_b: jax.Array,
     value_c: jax.Array,
-    moduli_t=util.RNS_MODULI_T,
+    moduli_t=utils.RNS_MODULI,
 ):
   """Add three u16 values with RNS reduction.
 
@@ -854,14 +998,9 @@ def add_rns_3u16(
   return add_sub_rns_var(value_a, value_b, value_c, moduli_t=moduli_t)
 
 
-@jax.named_call
-@functools.partial(
-    jax.jit,
-    static_argnames="moduli_sub",
-)
 def negate_rns_for_var_add(
     value_a: jax.Array,
-    moduli_sub=util.MODULI_SUB,
+    moduli_sub=utils.MODULI_SUB,
 ):
   """Negate a value for use in subtraction.
 
@@ -876,70 +1015,16 @@ def negate_rns_for_var_add(
   Returns:
     An intermediate representing the negation of values_a in the target modulus
     in RNS form.
-
-  Note: original data precision is 16 bit, using uint32 to avoid overflow
   """
-  moduli_sub = jnp.array(moduli_sub, dtype=jnp.uint32)
-
+  moduli_sub = jnp.array(moduli_sub, dtype=jnp.uint16)
   return jnp.add(
       jnp.negative(value_a.astype(jnp.uint16)).astype(jnp.uint32),
-      moduli_sub,
+      moduli_sub.astype(jnp.uint32),
   )
 
 
-@jax.named_call
-@functools.partial(
-    jax.jit,
-    static_argnames="moduli_sub",
-)
-def negate_rns_for_var_add_zero_check(
-    value_a: jax.Array,
-    moduli_sub=util.MODULI_SUB,
-):
-  """Negate a value for use in subtraction.
-
-  Do not use the output in any function but add_sub_rns_var -- may break
-  correctness.
-
-  Args:
-    value_a: RNS array to negate
-    moduli_sub: Precomputed constants for performing negation, that depend on
-      the target modulus
-
-  Returns:
-    An intermediate representing the negation of values_a in the target modulus
-    in RNS form.
-
-  Note: original data precision is 16 bit, using uint32 to avoid overflow
-  """
-
-  moduli_sub = jnp.array(moduli_sub, dtype=jnp.uint32)
-  a = value_a.astype(jnp.uint16)
-
-  # Compute two's complement negation: for nonzero a, jnp.negative(a) computes
-  # (2^16 - a).
-  neg = jnp.negative(a).astype(jnp.uint32)
-
-  # Build a branchless mask: 0 if a==0, 1 otherwise.
-  mask = (a != 0).astype(jnp.uint32)
-
-  # For nonzero a: (2^16 - a) + moduli_sub; for zero: m + 0 multiplied by 0
-  # gives 0.
-  return (neg + moduli_sub) * mask
-
-
-@jax.named_call
-@functools.partial(
-    jax.jit,
-    static_argnames="moduli_t",
-)
-def add_sub_rns_var(*values, moduli_t=util.RNS_MODULI_T):
+def add_sub_rns_var(*values, moduli_t=utils.RNS_MODULI):
   """Evaluate an static set of additions and subtractions.
-
-  Subtractions are implemented by calling negate_rns_for_var_add on inputs to
-  this function. Inputs should be "fresh" or multiplication outputs, and the
-  output should be used as a multiplication input. Any other usage produces
-  undefined behavior and may break correctness.
 
   Args:
     *values: A list of RNS values to accumulate
@@ -969,8 +1054,58 @@ def add_sub_rns_var(*values, moduli_t=util.RNS_MODULI_T):
   return jnp.add(jnp.multiply(u2, moduli_t).astype(jnp.uint16), l2)
 
 
-@functools.partial(jax.jit, static_argnames=("c", "num_moduli"))
-def rns_constant(c, num_moduli=util.NUM_MODULI):
+def construct_rns_conversion_matrix(p_bytes=utils.U8_CHUNK_NUM):
+  """Construct the reduction matrix.
+
+  Args:
+    p_bytes: The number of bytes in the modulus.
+
+  Returns:
+    rns_conv_mat: The rns conversion matrix.
+
+  Note that: this function runs on CPU of the TPU-VM, which cannot be jitted.
+  """
+  conv_mat = np.zeros((p_bytes, utils.NUM_MODULI), dtype=jnp.uint16)
+  for i in range(p_bytes):
+    placevalue = 256**i
+    conv_mat[i, :] = utils.to_rns(placevalue, utils.MODULI)
+  l, h = get_parts(conv_mat)
+  rns_conv_mat = np.hstack((l, h))
+  return jnp.asarray(rns_conv_mat, dtype=jnp.uint16)
+
+
+@jax.named_call
+@functools.partial(
+    jax.jit,
+    static_argnames="s_idx",
+)
+def convert_to_rns(
+    values: jax.Array,
+    rns_conv_mat: jax.Array,
+    s_idx=utils.NUM_MODULI,
+):
+  """Apply matrix operation to convert to RNS.
+
+  Args:
+    values: Array of bigints.
+    rns_conv_mat: precomputed conversion matrix
+    s_idx: The number of moduli.
+
+  Returns:
+    rns_values: values in RNS form
+  """
+  v = jnp.matmul(
+      values.view(jnp.uint8), rns_conv_mat, preferred_element_type=jnp.uint32
+  )
+  c = v[:, :s_idx] + (v[:, s_idx:] << 8)
+  return moduli_rns_red_internal_2u16(c)
+
+
+@functools.partial(
+    jax.jit,
+    static_argnames=("c", "num_moduli"),
+)
+def rns_constant(c, num_moduli=utils.NUM_MODULI):
   assert c >= 0
   assert c < 2**14  # small constants only please
   return jnp.repeat(jnp.array([c], dtype=jnp.uint16), num_moduli)
