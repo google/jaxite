@@ -715,21 +715,6 @@ class MSMPippenger:
 #########################
 
 
-def padd(partial_sum, single_point):
-  return jec.padd_rns_twisted_pack(partial_sum, single_point)
-
-
-def padd_with_pdul_check(partial_sum, single_point):
-  # coordinate_dim, batch_dim, precision_dim = partial_sum.shape
-  _, batch_dim, _ = partial_sum.shape
-  new_partial_sum = jec.padd_rns_twisted_pack(partial_sum, single_point)
-  double_partial_sum = jec.pdul_rns_twisted_pack(partial_sum)
-  cond_equal = jnp.all(partial_sum == single_point, axis=(0, 2)).reshape(
-      1, batch_dim, 1
-  )
-  return jnp.where(cond_equal, double_partial_sum, new_partial_sum)
-
-
 def bucket_accumulation_index_scan_parallel_algorithm_twisted(
     all_buckets: jnp.ndarray,
     all_points: jnp.ndarray,
@@ -755,7 +740,7 @@ def bucket_accumulation_index_scan_parallel_algorithm_twisted(
     selective_buckets = buckets[
         :, jnp.arange(batch_window_dim), selection_index, :
     ]
-    selective_update = padd(selective_buckets, point)
+    selective_update = jec.padd_rns_twisted_pack(selective_buckets, point)
     return (
         buckets.at[:, jnp.arange(batch_window_dim), selection_index, :].set(
             selective_update
@@ -779,12 +764,12 @@ def bucket_reduction_scan_algorithm_twisted(
     bucket_num_in_window: int,
 ):
   """Scan version BR."""
-  all_buckets = jnp.flip(all_buckets.transpose(2, 0, 1, 3), axis=0)
+  all_buckets = all_buckets.transpose(2, 0, 1, 3)
 
   def scan_body(temp_and_window_sum_pack, buckets):
     temp_sum, window_sum = temp_and_window_sum_pack
-    temp_sum = padd(temp_sum, buckets)
-    window_sum = padd_with_pdul_check(window_sum, temp_sum)
+    temp_sum = jec.padd_rns_twisted_pack(temp_sum, buckets)
+    window_sum = jec.padd_rns_twisted_pack(window_sum, temp_sum)
     return (temp_sum, window_sum), None
 
   (_, window_sum), _ = jax.lax.scan(
@@ -792,6 +777,7 @@ def bucket_reduction_scan_algorithm_twisted(
       (temp_sum, window_sum),
       all_buckets[:bucket_num_in_window],
       length=bucket_num_in_window,
+      reverse=True,
   )
 
   return window_sum
@@ -810,7 +796,9 @@ def batch_window_summation_algorithm_twisted(
   ).transpose(1, 0, 2, 3)
 
   def scan_body(batch_window_sum, single_window_sum):
-    batch_window_sum = padd(batch_window_sum, single_window_sum)
+    batch_window_sum = jec.padd_rns_twisted_pack(
+        batch_window_sum, single_window_sum
+    )
     return batch_window_sum, None
 
   batch_window_sum, _ = jax.lax.scan(
@@ -998,6 +986,7 @@ class MSMPippengerTwisted:
     self.all_buckets = bucket_accumulation_index_func(
         self.all_buckets, self.all_points, self.selection_index_list
     )
+    # for q in range(self.coordinate_num):
     return self.all_buckets
 
   def bucket_reduction(self, bucket_reduction_func):
@@ -1039,7 +1028,14 @@ class MSMPippengerTwisted:
     return self.window_sum
 
   def window_merge(self, window_merge_func):
-    """Merge the windows to form the final elliptic curve."""
+    """Merge the windows to form the final elliptic curve.
+
+    Args:
+      window_merge_func: The function to merge the windows.
+
+    Returns:
+      The final elliptic curve.
+    """
     self.result = window_merge_func(self.window_sum)
     return self.result
 
@@ -1055,3 +1051,260 @@ class MSMPippengerTwisted:
         selection_index.append(slice_index)
       selection_index_list.append(deepcopy(selection_index))
     return selection_index_list
+
+
+#########################
+# Functions for Signed bucket + twisted curve
+#########################
+def padd_with_sign(partial_sum, single_point, sign):
+  neg_single_point = jec.pneg_rns_twisted_pack(single_point)
+  _, batch_dim, _ = partial_sum.shape
+  cond_neg = jnp.equal(sign, 1).reshape(1, batch_dim, 1)
+  signed_point = jnp.where(cond_neg, neg_single_point, single_point)
+  result = jec.padd_rns_twisted_pack(partial_sum, signed_point)
+  return result
+
+
+def bucket_accumulation_signed_index_scan_parallel_algorithm_twisted(
+    all_buckets: jnp.ndarray,
+    all_points: jnp.ndarray,
+    selection_index_list: jnp.ndarray,
+    selection_sign_list: jnp.ndarray,
+    msm_length: int,
+):
+  """Scan version BA with index selection."""
+  window_selection = jnp.arange(256)
+  coordinate_dim, batch_window_dim, _, precision_dim = all_buckets.shape
+  _, _, parallel_dim, _ = (
+      all_points.shape
+  )  # (serial_dim, coordinate_dim, parallel_dim, precision_dim)
+  single_window_dim = batch_window_dim // parallel_dim
+
+  def scan_body(buckets, point_with_cond_pack):
+    point, selection_index, selection_sign = point_with_cond_pack
+    # point = jnp.repeat(point, repeats=single_window_dim, axis=1)
+    point = jax.lax.broadcast_in_dim(
+        point,
+        (coordinate_dim, parallel_dim, single_window_dim, precision_dim),
+        (0, 1, 3),
+    )
+    point = point.reshape((coordinate_dim, batch_window_dim, precision_dim))
+    selective_buckets = buckets[:, window_selection, selection_index, :]
+    selective_update = padd_with_sign(selective_buckets, point, selection_sign)
+    return (
+        buckets.at[:, window_selection, selection_index, :].set(
+            selective_update
+        ),
+        None,
+    )
+
+  all_buckets, _ = jax.lax.scan(
+      scan_body,
+      all_buckets,
+      (all_points, selection_index_list, selection_sign_list),
+      length=msm_length,
+  )
+  return all_buckets
+
+
+class MSMPippengerTwistedSigned:
+  """Pippenger algorithm for elliptic curves with twisted and signed points.
+
+  Attributes:
+    coordinate_num: The number of coordinates in the elliptic curve.
+    slice_length: The length of each slice in the elliptic curve.
+    point_parallel: The number of parallel points in the elliptic curve.
+    window_num: The number of windows in the elliptic curve.
+    batch_window_num: The number of batch windows in the elliptic curve.
+    bucket_num_per_window: The number of buckets in each window.
+    slice_mask: The mask for the slices in the elliptic curve.
+    blank_point: A JAX array of zeros, used to initialize the buckets.
+    all_buckets: A JAX array of all the buckets in the elliptic curve.
+    points: A list of JAX arrays, where each array represents an Orignal point
+      from the trace.
+    scalars: A list of integers, where each integer represents an Orignal scalar
+      from the trace.
+    all_points: A JAX array of all the points in the elliptic curve. from the
+      trace.
+    window_sum: A JAX array of the window sum.
+    zero_states_list: A JAX array of the zero states for the buckets.
+    selection_list: A JAX array of the selection states for the buckets.
+    selection_index_list: A JAX array of the selection index for the buckets.
+    selection_sign_list: A JAX array of the selection sign for the buckets.
+    all_points: A JAX array of all the points in the elliptic curve. from the
+      trace.
+    msm_length: The length of the MSM trace.
+    result: The final elliptic curve.
+    rns_mat: The rns matrix used for padding and doubling.
+  """
+
+  def __init__(self, slice_length: int, point_parallel: int):
+    self.coordinate_num = util.COORDINATE_NUM
+
+    self.slice_length = slice_length
+    self.point_parallel = point_parallel
+    self.window_num = int(math.ceil(254 / self.slice_length))  #
+    self.batch_window_num = self.window_num * self.point_parallel
+    self.bucket_num_per_window = 2 ** (self.slice_length - 1)
+    self.slice_mask = 2**self.slice_length - 1
+    self.blank_point = (
+        util.int_list_to_array_rns([0, 1, 1, 0])
+        .reshape(self.coordinate_num, 1, util.NUM_MODULI)
+        .astype(jnp.uint16)
+    )
+
+    self.all_buckets = jnp.broadcast_to(
+        self.blank_point.reshape(
+            1, self.coordinate_num, 1, util.NUM_MODULI
+        ).transpose(1, 0, 2, 3),
+        (
+            self.coordinate_num,
+            self.batch_window_num,
+            self.bucket_num_per_window,
+            util.NUM_MODULI,
+        ),
+    )
+
+    self.window_sum: jnp.ndarray
+
+    self.msm_length = 0
+
+    self.zero_states_list: jnp.ndarray
+    self.selection_list: jnp.ndarray
+    self.selection_index_list: jnp.ndarray
+    self.selection_sign_list: jnp.ndarray
+    self.all_points: jnp.ndarray
+
+    self.scalars: List[int] = []  # Orignal scalar from the trace
+    # [Points, Points, ..., Points]
+    self.points: List[jnp.ndarray] = []  # Orignal points from the trace
+    self.rns_mat = util.construct_rns_matrix(util.MODULUS_377_INT)
+
+    self.result = None
+
+  def initialize(self, scalars, points):
+    """Initialize the Pippenger algorithm.
+
+    Args:
+      scalars: A list of integers, where each integer represents an Orignal
+        scalar from the trace.
+      points: A list of JAX arrays, where each array represents an Orignal point
+        from the trace.
+    """
+    # Initial internal selection from the scalar
+    self.scalars = scalars
+    self.msm_length = len(scalars)
+
+    # Convert high-precision points into a vector of low-precision chunks
+    self.points = [
+        util.int_list_to_array_rns(coordinates) for coordinates in points
+    ]
+    self.all_points = jnp.array(self.points).astype(jnp.uint16)
+    _, coordinate_dim, precision_dim = self.all_points.shape
+
+    # For BA
+    selection_index_pylist, selection_sign_pylist = (
+        self.construct_ba_selection_with_sign()
+    )
+    self.selection_index_list = jnp.asarray(selection_index_pylist).astype(
+        jnp.uint16
+    )
+    self.selection_sign_list = jnp.array(selection_sign_pylist, dtype=jnp.uint8)
+    _, window_dim = self.selection_index_list.shape
+
+    # Batch construction
+    self.all_points = self.all_points.reshape(
+        (-1, self.point_parallel, coordinate_dim, precision_dim)
+    ).transpose(0, 2, 1, 3)
+    self.selection_index_list = self.selection_index_list.reshape(
+        (-1, window_dim * self.point_parallel)
+    )
+    self.selection_sign_list = self.selection_sign_list.reshape(
+        (-1, window_dim * self.point_parallel)
+    )
+
+  def bucket_accumulation(self, bucket_accumulation_index_algorithm):
+    """BA index selection version."""
+    self.all_buckets = bucket_accumulation_index_algorithm(
+        self.all_buckets,
+        self.all_points,
+        self.selection_index_list,
+        self.selection_sign_list,
+    )
+
+    return self.all_buckets
+
+  def bucket_reduction(self, bucket_reduction_func):
+    """Reduce the buckets to a single point for each window."""
+    temp_sum = jnp.broadcast_to(
+        self.blank_point,
+        (
+            self.coordinate_num,
+            self.batch_window_num,
+            util.NUM_MODULI,
+        ),
+    )
+    window_sum = jnp.broadcast_to(
+        self.blank_point,
+        (
+            self.coordinate_num,
+            self.batch_window_num,
+            util.NUM_MODULI,
+        ),
+    )
+    self.window_sum = bucket_reduction_func(
+        self.all_buckets, temp_sum, window_sum
+    )
+    return self.window_sum
+
+  def batch_window_summation(self, batch_window_summation_algorithm):
+    """Sum the batch windows to form the final window sum."""
+    batch_window_sum = jnp.broadcast_to(
+        self.blank_point,
+        (
+            self.coordinate_num,
+            self.window_num,
+            util.NUM_MODULI,
+        ),
+    )
+    self.window_sum = batch_window_summation_algorithm(
+        batch_window_sum, self.window_sum
+    )
+    return self.window_sum
+
+  def window_merge(self, window_merge_func):
+    """Merge the windows to form the final elliptic curve."""
+    self.result = window_merge_func(self.window_sum)
+    return self.result
+
+  def construct_ba_selection_with_sign(self):
+    """Construct the selection index and sign for the bucket accumulation (BA) step.
+
+    Returns:
+      A tuple of two lists: the selection index for the bucket accumulation, and
+      the selection sign for the bucket accumulation.
+    """
+    selection_index_list = []  # Used for index selection
+    selection_sign_list = []
+    slice_max = 2**self.slice_length
+    slice_half = 2 ** (self.slice_length - 1)
+    for scalar in self.scalars:
+      # Compute the zero states for each scalar by time dependence
+      selection_index = []
+      selection_sign = []
+      carry = 0
+      for w in range(self.window_num):
+        slice_index = (scalar >> (w * self.slice_length)) & self.slice_mask
+        slice_index = slice_index + carry
+        if slice_index >= slice_half:
+          new_slice_index = abs(slice_index - slice_max)
+          carry = 1
+        else:
+          new_slice_index = slice_index
+          carry = 0
+        selection_index.append(new_slice_index - 1)
+        selection_sign.append(carry)
+      assert carry == 0
+      selection_index_list.append(deepcopy(selection_index))
+      selection_sign_list.append(deepcopy(selection_sign))
+    return selection_index_list, selection_sign_list

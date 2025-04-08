@@ -201,6 +201,23 @@ class FiniteFieldTest(absltest.TestCase):
           (a_list[i] * b_list[i]) % util.MODULUS_377_INT,
       )
 
+  def test_jax_mod_mul_rns_unified(self):
+    """This test case check the jax version (TPU deployment) of the rns reduction based modular multiplication algorithm."""
+    batch_size = 16
+    a_list = [randint(0, util.MODULUS_377_INT) for _ in range(batch_size)]
+    b_list = [randint(0, util.MODULUS_377_INT) for _ in range(batch_size)]
+
+    modulus_rns_mat = util.construct_rns_matrix(util.MODULUS_377_INT)
+    a_batch = util.int_list_to_array_rns(a_list)
+    b_batch = util.int_list_to_array_rns(b_list)
+    c_batch = ff.mod_mul_rns_unified_2u16(a_batch, b_batch, modulus_rns_mat)
+    c_list = util.array_rns_to_int_list(c_batch)
+    for i in range(len(a_list)):
+      np.testing.assert_equal(
+          c_list[i] % util.MODULUS_377_INT,
+          (a_list[i] * b_list[i]) % util.MODULUS_377_INT,
+      )
+
   def test_jax_add_rns(self):
     max_val = [2**16 - 1 for _ in range(util.NUM_MODULI)]
     max_normal_val = [m - 1 for m in util.MODULI]
@@ -210,10 +227,8 @@ class FiniteFieldTest(absltest.TestCase):
       for b in values:
         jax_a = jnp.array(a, dtype=jnp.uint16).reshape((1, util.NUM_MODULI))
         jax_b = jnp.array(b, dtype=jnp.uint16).reshape((1, util.NUM_MODULI))
-        jax_sum = ff.add_rns_2u16(jax_a, jax_b, tuple(util.RNS_MODULI_T))
-        jax_3sum = ff.add_rns_3u16(
-            jax_a, jax_b, jax_a, tuple(util.RNS_MODULI_T)
-        )
+        jax_sum = ff.add_rns_2u16(jax_a, jax_b)
+        jax_3sum = ff.add_rns_3u16(jax_a, jax_b, jax_a)
         for i in range(util.NUM_MODULI):
           np.testing.assert_equal(
               int(jax_sum[0, i]) % util.MODULI[i],

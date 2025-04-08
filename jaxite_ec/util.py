@@ -4,7 +4,6 @@ Note that: All functions that directly take Python int as input cannot be
 jitted.
 """
 
-import csv
 import json
 import math
 from typing import Any, Callable, List, Tuple
@@ -55,80 +54,6 @@ MODULUS_377_S16_INT = MODULUS_377_INT << 16
 # Pippenger Logics
 COORDINATE_NUM = 4
 
-# RNS Reduction Logics
-# Hardware friendly moduli factors are 2**16 - v for v in the following list
-RNS_MODULI_T = (
-    0,
-    1,
-    3,
-    5,
-    9,
-    15,
-    17,
-    27,
-    33,
-    39,
-    45,
-    47,
-    57,
-    59,
-    63,
-    77,
-    87,
-    89,
-    99,
-    105,
-    113,
-    117,
-    123,
-    125,
-    129,
-    143,
-    153,
-    155,
-    165,
-    167,
-    173,
-    179,
-    183,
-    189,
-    197,
-    209,
-    213,
-    215,
-    225,
-    227,
-    243,
-    249,
-    14,
-    38,
-    50,
-    54,
-    98,
-    102,
-    110,
-    122,
-)
-
-MODULI = tuple([
-    2**16 if i == 0 else 2**16 - int(i) if i % 2 == 1 else 2**15 - (int(i) // 2)
-    for i in RNS_MODULI_T
-])
-
-
-RNS_PRECISION = 16
-NUM_MODULI = len(RNS_MODULI_T)
-# Maximum number of consecutive additions/subtractions
-ADDITION_BOUND = 4
-
-# Warning: specific to target modulus and addition bound
-MODULI_SUB = tuple([
-    ((512 * NUM_MODULI * MODULUS_377_INT * ADDITION_BOUND) - 2**16) % m
-    for m in MODULI
-])
-TWIST_D_RNS = tuple([TWIST_D_INT % MODULI[i] for i in range(len(MODULI))])
-
-
 ####################################
 # Utility Functions
 ####################################
@@ -150,7 +75,7 @@ def array_to_int(jax_array: jax.Array, base) -> int:
 
 
 def int_to_array(
-    python_int, base=BASE, dtype=jnp.uint16, array_size=U16_CHUNK_NUM
+    python_int, base=BASE, dtype=BASE_TYPE, array_size=U16_CHUNK_NUM
 ):
   """Converts a Python integer to a JAX array."""
   mask = (1 << base) - 1
@@ -165,7 +90,7 @@ def int_to_array(
     assert array_size >= len(elements)
     elements = elements[:array_size] + [0] * (array_size - len(elements))
 
-  return jnp.array(elements, dtype=dtype)
+  return jnp.array(elements, dtype=dtype).astype(BASE_TYPE)
 
 
 def array_to_int_list(jax_array, base):
@@ -183,16 +108,16 @@ def int_list_to_array(int_list, base=BASE, array_size=U16_CHUNK_NUM):
   chunked_arrays = []
   for int_value in int_list:
     chunked_arrays.append(int_to_array(int_value, base, array_size=array_size))
-  return jnp.array(chunked_arrays)
+  return jnp.array(chunked_arrays).astype(BASE_TYPE)
 
 
 def int_point_to_jax_point_pack(
-    coordinates: List[int], base=BASE, chunk_num=U16_CHUNK_NUM
+    coordinates: List[int], base=BASE, array_size=U16_CHUNK_NUM
 ):
   result = []
   for i in range(len(coordinates)):
-    result.append(int_to_array(coordinates[i], base, array_size=chunk_num))
-  return jnp.array(result)
+    result.append(int_to_array(coordinates[i], base, array_size=array_size))
+  return jnp.array(result).astype(BASE_TYPE)
 
 
 def jax_point_pack_to_int_point(point: jax.Array):
@@ -219,7 +144,7 @@ def int_list_to_array_rns(int_list) -> jnp.ndarray:
   limbs = []
   for int_value in int_list:
     limbs.append(int_to_array_rns(int_value))
-  return jnp.array(limbs)
+  return jnp.array(limbs).astype(BASE_TYPE)
 
 
 def array_rns_to_int_list(jax_array):
@@ -236,7 +161,7 @@ def int_point_to_jax_rns_point_pack(coordinates: List[int]):
   result = []
   for i in range(len(coordinates)):
     result.append(int_to_array_rns(coordinates[i]))
-  return jnp.array(result)
+  return jnp.array(result).astype(BASE_TYPE)
 
 
 def jax_rns_point_pack_to_int_point(point: jax.Array):
@@ -249,11 +174,11 @@ def jax_rns_point_pack_to_int_point(point: jax.Array):
 
 
 def int_point_batch_to_jax_point_pack(
-    points: List[List[int]], base=BASE, chunk_num=U16_CHUNK_NUM
+    points: List[List[int]], base=BASE, array_size=U16_CHUNK_NUM
 ):
   result = []
   for i in range(len(points)):
-    result.append(int_point_to_jax_point_pack(points[i], base, chunk_num))
+    result.append(int_point_to_jax_point_pack(points[i], base, array_size))
   return jnp.transpose(jnp.array(result), (1, 0, 2))
 
 
@@ -324,7 +249,7 @@ def to_tuple(a):
 # The following function achieves the same function as int_to_array, but it
 # can be pre-run (Google restriction), and returns a tuple.
 def int_to_precomputed_array(
-    python_int, base=BASE, dtype=jnp.uint16, array_size=U16_CHUNK_NUM
+    python_int, base=BASE, dtype=BASE_TYPE, array_size=U16_CHUNK_NUM
 ):
   """Converts a Python integer to a JAX array."""
   mask = (1 << base) - 1
@@ -456,7 +381,7 @@ def find_moduli(total_modulus, precision):
   overall_moduli = []
   overall_constant_offset = []
   overall_modulus = 1
-  for i in range(2 ** (precision >> 1) - 1):
+  for i in range(2 ** precision - 1):
     cur_moduli = initial_moduli - i
     if math.gcd(cur_moduli, overall_modulus) == 1:
       overall_moduli.append(cur_moduli)
@@ -465,17 +390,59 @@ def find_moduli(total_modulus, precision):
       if overall_modulus > total_modulus:
         return to_tuple(overall_moduli), to_tuple(overall_constant_offset)
 
-  # Find 2**15 - v too
-  initial_moduli = 2 ** (precision - 1)
-  if overall_modulus < total_modulus:
-    for i in range(2 ** (precision >> 1) - 1):
-      cur_moduli = initial_moduli - i
-      if math.gcd(cur_moduli, overall_modulus) == 1:
-        overall_moduli.append(cur_moduli)
-        overall_constant_offset.append(i << 1)
-        overall_modulus *= cur_moduli
-        if overall_modulus > total_modulus:
-          return to_tuple(overall_moduli), to_tuple(overall_constant_offset)
+  return to_tuple(overall_moduli), to_tuple(overall_constant_offset)
+
+
+def find_moduli_specified_number(total_number, precision):
+  """Finds a list of moduli close to the given precision.
+
+  Args:
+    total_number: The total number of moduli requirement.
+    precision: The desired precision of the moduli.
+
+  Returns:
+    A tuple containing two lists:
+      - overall_moduli: A list of moduli close to the given precision.
+      - overall_constant_offset: A list of constant offsets for the moduli.
+  """
+  initial_moduli = 2**precision
+  overall_moduli = []
+  overall_modulus = 1
+  for i in range(1, 2 ** precision - 1):
+    cur_moduli = initial_moduli - i
+    if math.gcd(cur_moduli, overall_modulus) == 1:
+      overall_moduli.append(cur_moduli)
+      overall_modulus *= cur_moduli
+      if len(overall_moduli) >= total_number:
+        return to_tuple(overall_moduli)
+
+  return to_tuple(overall_moduli)
+
+
+def find_moduli_barrett(total_modulus, precision):
+  """Finds a list of moduli close to the given precision.
+
+  Args:
+    total_modulus: The target modulus.
+    precision: The desired precision of the moduli.
+
+  Returns:
+    A tuple containing two lists:
+      - overall_moduli: A list of moduli close to the given precision.
+      - overall_constant_offset: A list of constant offsets for the moduli.
+  """
+  initial_moduli = 2**precision
+  overall_moduli = []
+  overall_constant_offset = []
+  overall_modulus = 1
+  for i in range(1, 2 ** (precision >> 1) - 1):
+    cur_moduli = initial_moduli - i
+    if math.gcd(cur_moduli, overall_modulus) == 1:
+      overall_moduli.append(cur_moduli)
+      overall_constant_offset.append(i)
+      overall_modulus *= cur_moduli
+      if overall_modulus > total_modulus:
+        return to_tuple(overall_moduli), to_tuple(overall_constant_offset)
 
   return to_tuple(overall_moduli), to_tuple(overall_constant_offset)
 
@@ -532,9 +499,8 @@ def rns_coefficients_precompute(
   ]
 
   rns_mat = np.array(
-      icrt_factors_byteshifted_modq_rns, dtype=np.uint16
+      icrt_factors_byteshifted_modq_rns, dtype=BASE_TYPE
   ).reshape(-1, num_residues)
-
   # calculate quotient estimation
   fix_point = 1 << moduli_precision
 
@@ -544,46 +510,46 @@ def rns_coefficients_precompute(
       shifted_quotient_estimations.append(
           [math.ceil((chunk * fix_point) / overall_modulus)]
       )
-  sqe_mat = np.array(shifted_quotient_estimations, dtype=np.uint16)
+  sqe_mat = np.array(shifted_quotient_estimations, dtype=BASE_TYPE)
 
   cor_mat = np.array(
-      [to_rns(-overall_modulus % q, overall_moduli)], dtype=np.uint16
+      [to_rns(-overall_modulus % q, overall_moduli)], dtype=BASE_TYPE
   )
 
-  # Convert rns_mat and sqe_mat into various bytes.
-  # Version 1: split precision into different chunks.
-  # rns_mat_u8 = rns_mat.view(np.uint8).reshape(*rns_mat.shape, num_bytes)
-  # seq_mat_u8 = sqe_mat.view(np.uint8).reshape(*sqe_mat.shape, num_bytes)
-  # rns_stack_mat_u8 = np.hstack((
-  #     rns_mat_u8[..., 0],
-  #     seq_mat_u8[..., 0],
-  #     rns_mat_u8[..., 1],
-  #     seq_mat_u8[..., 1],
-  # ))
-  # Version 2: interleave precision -- tested to be faster.
   rns_stack_mat_u8 = np.hstack(
       (rns_mat.view(jnp.uint8), sqe_mat.view(jnp.uint8))
   )
   return to_tuple(rns_stack_mat_u8.tolist()), to_tuple(cor_mat.tolist())
 
 
-def get_parts(u16mat):
-  assert u16mat.dtype == np.uint16
-  u16bytes = u16mat.view(np.uint8)
-  return [u16bytes[:, ::2], u16bytes[:, 1::2]]
-
-
-M = MODULUS_377_INT * MODULUS_377_INT * 256 * 256 * 50 * 50 * 4 * 2
 moduli_precision = 16
-num_bytes = moduli_precision // 8  # 2
+num_bytes = math.ceil(moduli_precision / 8)  # 2
+num_residues_for_q = (
+    int(MODULUS_377_INT).bit_length() + moduli_precision - 1
+) // moduli_precision
+NUM_MODULI = 56
+extra_bit_to_avoid_addition_overflow = 4
+minimal_modulus = (
+    MODULUS_377_INT
+    * 256
+    * NUM_MODULI
+    * 4
+    * 2
+    * extra_bit_to_avoid_addition_overflow
+) ** 2 * 2
+
+# ((MODULUS_377_INT * 255 * num_bytes * num_residues_for_q)**2)
+# * extra_bit_to_avoid_addition_overflow * 2
+# M = MODULUS_377_INT * MODULUS_377_INT * 256 * 256 * 50 * 50 * 4 * 2
 # hardware friendly moduli is 2**precision - t
 # overall_moduli is the jax.array of "2**precision - t"
 # overall_constant_offset is the jax.array of "t"
-overall_moduli, overall_constant_offset = find_moduli(M, moduli_precision)
+overall_moduli = find_moduli_specified_number(NUM_MODULI, moduli_precision)
 M = 1
 for moduli in overall_moduli:
   M *= moduli
 M = int(M)
+assert M > minimal_modulus
 assert len(overall_moduli) == (
     (M.bit_length() + moduli_precision - 1) // moduli_precision
 )
@@ -612,7 +578,6 @@ def construct_rns_matrix(q):
 
 
 MODULI = overall_moduli
-RNS_MODULI_T = overall_constant_offset
 RNS_MAT = (RNS_STACK_MAT_NEW, COR_MAT_NEW)
 MODULUS_377_INT_CHUNK = int_to_precomputed_array(
     MODULUS_377_INT, base=BASE, array_size=U16_CHUNK_NUM
@@ -623,6 +588,28 @@ MU_377_INT_CHUNK = int_to_precomputed_array(
 TWIST_D_INT_CHUNK = int_to_precomputed_array(
     TWIST_D_INT, base=BASE, array_size=U16_EXT_CHUNK_NUM
 )
+TWIST_D_INT_CHUNK_BARRETT = int_to_precomputed_array(
+    TWIST_D_INT, base=BASE, array_size=U16_CHUNK_NUM
+)
 MODULUS_377_S16_INT_CHUNK = int_to_precomputed_array(
     MODULUS_377_S16_INT, base=BASE, array_size=U16_EXT_CHUNK_NUM
 )
+# Maximum number of consecutive additions/subtractions
+# Warning: specific to target modulus and addition bound
+# SUB_MODULI_CONSTANT = (MODULUS_377_INT << 24)
+# print(RNS_MODULI_T)
+# print(MODULI)
+# print((256*NUM_MODULI *4* 2*MODULUS_377_INT) - 2**RNS_PRECISION)
+MODULI_SUB = tuple([
+    ((256 * NUM_MODULI * 4 * 2 * MODULUS_377_INT)) % m
+    # SUB_MODULI_CONSTANT % m
+    for m in MODULI
+])
+
+TWIST_D_RNS = tuple([TWIST_D_INT % MODULI[i] for i in range(len(MODULI))])
+
+S_BARRETT = to_tuple([2 * math.ceil(math.log2(q)) for q in MODULI])
+M_BARRETT = [math.floor(2**s / q) for (s, q) in zip(S_BARRETT, MODULI)]
+W_BARRETT = to_tuple([min(s, 32) for s in S_BARRETT])
+MASK_BARRETT = to_tuple([2**w - 1 for w in W_BARRETT])
+S_W_BARRETT = to_tuple([s - w for (s, w) in zip(S_BARRETT, W_BARRETT)])
