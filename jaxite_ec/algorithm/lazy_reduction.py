@@ -74,8 +74,8 @@ def main():
   batch_size = 16
   bound = p * 256 * 256
   # a and b are both < bound
-  a_list = [randint(0, bound) for _ in range(batch_size)]
-  b_list = [randint(0, bound) for _ in range(batch_size)]
+  a_list = [randint(0, bound) for i in range(batch_size)]
+  b_list = [randint(0, bound) for i in range(batch_size)]
   c_list = lazy_reduction_via_matrix(a_list, b_list, p)
   for i in range(batch_size):
     # each output is congruent modulo p

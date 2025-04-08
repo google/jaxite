@@ -1,6 +1,60 @@
 """Utility functions for the Bukect distribution algorithm."""
 
+from jaxite.jaxite_ec.algorithm import msm_reader as msm_reader_lib
 import numpy as np
+
+MSMReader = msm_reader_lib.MSMReader
+
+
+class BukectDistribution:
+  """A class to represent a Bukect distribution."""
+
+  def __init__(self, msm_reader: MSMReader, slice_length, window_num):
+    self.msm_reader = msm_reader
+    self.slice_length = slice_length
+    self.window_num = window_num
+    self.bucket_num_in_window = 2**self.slice_length
+    self.slice_mask = self.bucket_num_in_window - 1
+    self.windows = [
+        self.Window(self.bucket_num_in_window) for _ in range(self.window_num)
+    ]
+
+  class Window:
+    """A class to represent a window in a Bukect distribution."""
+
+    def __init__(self, bukect_num):
+      self.bukect_num = bukect_num
+      self.buckets = [0] * bukect_num
+      self.max = None
+      self.min = None
+
+    def get_min_max(self):
+      self.max = max(self.buckets[1:])
+      self.min = min(self.buckets[1:])
+      return self.min, self.max
+
+    def __getitem__(self, index):
+      return self.buckets[index]
+
+    def __setitem__(self, index, value):
+      self.buckets[index] = value
+
+  def run(self):
+    scalar = self.msm_reader.get_next_scalar()
+    while scalar != None:
+      current_scalar = scalar
+      window_id = 0
+      while current_scalar != 0:
+        bucket_id = current_scalar & self.slice_mask
+        self.windows[window_id][bucket_id] += 1
+        current_scalar = current_scalar >> self.slice_length
+        window_id += 1
+      scalar = self.msm_reader.get_next_scalar()
+
+  def print_result(self):
+    for window in self.windows:
+      bmin, bmax = window.get_min_max()
+      print(f"min: {bmin}, max: {bmax}")
 
 
 def bits_to_numpy_dtype(bits):
@@ -61,7 +115,7 @@ def array_to_int(np_array: np.ndarray, base):
   return result
 
 
-def int_list_to_array(int_list, base, array_size=None) -> np.ndarray:
+def int_list_to_2d_array(int_list, base, array_size=None) -> np.ndarray:
   chunked_arrays = [
       int_to_array(int_value, base, array_size) for int_value in int_list
   ]

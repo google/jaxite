@@ -3,10 +3,10 @@
 import abc
 import copy
 import enum
-from typing import Dict, Generic, Iterable, List, Optional, TypeVar, Union
+from typing import Dict, Generic, List, Optional, TypeVar, Union
 
 from jaxite.jaxite_ec.algorithm import big_integer
-from jaxite.jaxite_ec.algorithm import finite_field
+from jaxite.jaxite_ec.algorithm import finite_field as finite_field_lib
 
 
 BigInt = big_integer.GMPBigInteger
@@ -16,7 +16,7 @@ ABC = abc.ABC
 Auto = enum.auto
 Enum = enum.Enum
 T = TypeVar('T')
-FieldEle = finite_field.FiniteFieldElement
+FieldEle = finite_field_lib.FiniteFieldElement
 
 
 class CoordinateSystemType(Enum):
@@ -49,18 +49,23 @@ class ECPoint(Generic[T]):
   ) -> None:
     self.coordinate_system = coordinate_system
     self.zero = zero
-    self.coordinates = self.coordinate_system.generate_formal_coordinates(
-        coordinates, zero
-    )
+    if self.zero:
+      self.coordinates = None
+    else:
+      self.coordinates = self.coordinate_system.generate_formal_coordinates(
+          coordinates
+      )
     self.type = coordinate_system.get_type()
 
-  def __getitem__(self, index: Union[int, slice]):
+  def __getitem__(self, index: int) -> T:
+    """Allows access to elements in self.coordinates using index."""
     return self.coordinates[index]
 
-  def __setitem__(
-      self, index: Union[int, slice], value: Union[T, Iterable[T]]
-  ) -> None:
-    self.coordinates[index] = value  # type: ignore
+  def __setitem__(self, index: int, value: T) -> None:
+    """Allows modification of elements in self.coordinates using index."""
+    if self.coordinates is None:
+      raise TypeError('unsupported operand type(s) for item assignment: None')
+    self.coordinates[index] = value
 
   def __eq__(self, other: 'ECPoint') -> bool:
     if not isinstance(other, ECPoint):
@@ -99,7 +104,7 @@ class ECPoint(Generic[T]):
     obj = copy.copy(self)
     if not self.is_zero():
       obj.coordinates = self.coordinate_system.generate_formal_coordinates(
-          self.coordinates, self.zero
+          self.coordinates
       )
     return obj
 
@@ -109,8 +114,10 @@ class ECPoint(Generic[T]):
   def __str__(self) -> str:
     if self.is_zero():
       return 'Point, O'
-    coord_strs = [coord.hex_value_str() for coord in self.coordinates]
-    return 'Point, ' + ', '.join(coord_strs)
+    ret = 'Point, '
+    for i in range(len(self.coordinates)):
+      ret += self.coordinates[i].hex_value_str() + ', '
+    return ret
 
 
 class EllipticCurveCoordinateSystem(ABC, Generic[T]):
@@ -132,9 +139,7 @@ class EllipticCurveCoordinateSystem(ABC, Generic[T]):
     self.type = CoordinateSystemType.NONE
 
   @abstractmethod
-  def generate_formal_coordinates(
-      self, coordinates: List[Union[int, FieldEle]], zero: bool
-  ) -> List[T]:
+  def generate_formal_coordinates(self, coordinates: List[T]) -> List[T]:
     pass
 
   def get_type(self):
@@ -188,10 +193,8 @@ class ECCSWeierstrass(EllipticCurveCoordinateSystem[FieldEle]):
     self.b = self.ff_zero.copy(config['b'])
 
   def generate_formal_coordinates(
-      self, coordinates: List[Union[int, FieldEle]], zero: bool = False
-  ):
-    if zero:
-      return None
+      self, coordinates: List[FieldEle]
+  ) -> List[FieldEle]:
     formal_coordinate: List[FieldEle] = []
     for coordinate in coordinates:
       if isinstance(coordinate, FieldEle):
@@ -252,10 +255,8 @@ class ECCSWeierstrassAffine(ECCSWeierstrass):
     return point_a
 
   def generate_formal_coordinates(
-      self, coordinates: List[Union[int, FieldEle]], zero: bool = False
-  ) -> Optional[List[FieldEle]]:
-    if zero:
-      return None
+      self, coordinates: List[FieldEle]
+  ) -> List[FieldEle]:
     coordinate_length = len(coordinates)
     assert coordinate_length == 2 or coordinate_length == 3
     formal_coordinates: List[FieldEle] = []
@@ -442,10 +443,8 @@ class ECCSWeierstrassXYZZ(ECCSWeierstrass):
     self.type = CoordinateSystemType.WEIERSTRASS_XYZZ
 
   def generate_formal_coordinates(
-      self, coordinates: List[Union[int, FieldEle]], zero: bool = False
-  ) -> Optional[List[FieldEle]]:
-    if zero:
-      return None
+      self, coordinates: List[FieldEle]
+  ) -> List[FieldEle]:
     coordinate_length = len(coordinates)
     assert coordinate_length == 2 or coordinate_length == 4
     formal_coordinates: List[FieldEle] = []
@@ -572,204 +571,3 @@ class ECCSWeierstrassXYZZ(ECCSWeierstrass):
       return new_point
     else:
       return new_point
-
-
-class ECCSTwistedEdwardsExtended(ECCSWeierstrass):
-  """Twisted Edwards Extended coordinate system."""
-
-  def __init__(self, config: Dict[str, Union[int, List[int]]]) -> None:
-    super().__init__(config)
-    self.type = CoordinateSystemType.WEIERSTRASS_PROJECTIVE
-    self.a = self.ff_zero.copy(config['a'])
-    self.d = self.ff_zero.copy(config['d'])
-    self.alpha = self.ff_zero.copy(config['alpha'])
-    self.s = self.ff_zero.copy(config['s'])
-    self.ma = self.ff_zero.copy(config['MA'])
-    self.mb = self.ff_zero.copy(config['MB'])
-    self.t = self.ff_zero.copy(config['t'])
-    self.k = self.d + self.d
-
-  def generate_point(
-      self,
-      coordinates: Optional[Union[List[T], List[int]]] = None,
-      zero: bool = False,
-      twist: bool = True,
-  ) -> ECPoint[T]:
-    if twist:
-      ff_coordinates = []
-      for coordinate in coordinates:
-        if isinstance(coordinate, FieldEle):
-          ff_coordinates.append(coordinate)
-        else:
-          ff_coordinates.append(self.ff_zero.copy(coordinate))
-      coordinates = self.twist(ff_coordinates)
-    return ECPoint[T](coordinates, self, zero)
-
-  def generate_formal_coordinates(
-      self,
-      coordinates: List[Union[int, FieldEle]],
-      zero: bool = False,
-  ) -> Optional[List[FieldEle]]:
-    if zero:
-      coordinates = self.zero()
-    coordinate_length = len(coordinates)
-    assert coordinate_length in {2, 4}
-    formal_coordinates: List[FieldEle] = []
-    for coordinate in coordinates:
-      if isinstance(coordinate, FieldEle):
-        formal_coordinates.append(coordinate)
-      else:
-        formal_coordinates.append(self.ff_zero.copy(coordinate))
-
-    if coordinate_length == 2:
-      formal_coordinates.append(self.ff_one.copy())
-      formal_coordinates.append(formal_coordinates[0] * formal_coordinates[1])
-
-    return formal_coordinates
-
-  def point_add(self, point_a: ECPoint[FieldEle], point_b: ECPoint[FieldEle]):
-    # https://www.hyperelliptic.org/EFD/g1p/data/twisted/extended/addition/madd-2008-hwcd
-    # copied from arkworks_bls12_377
-    x1, y1, z1, t1 = point_a
-    x2, y2, z2, t2 = point_b  # 0, 1, 1, 0
-    a = x1 * x2  # 0
-    b = y1 * y2  # y1
-    c = self.d * t1 * t2  # 0
-    d = z1 * z2  # z1
-    # h = b - (self.a * a) # self.a = -1 in standard form
-    h = b + a  # y1
-    # karatsuba
-    e = (x1 + y1) * (x2 + y2) - h  # (x1 + y1) - y1 = x1
-    f = d - c  # z1
-    g = d + c  # z1
-    x3 = e * f  # x1 * z1
-    y3 = g * h  # y1 * z1
-    z3 = f * g  # z1 * z1
-    t3 = e * h  # x1 * y1
-
-    return ECPoint[FieldEle]([x3, y3, z3, t3], self)
-
-  def double_general(self, point_a: ECPoint[FieldEle]):
-    # https://www.hyperelliptic.org/EFD/g1p/data/twisted/extended/doubling/dbl-2008-hwcd
-    # copied from arkworks_bls12_377
-    x1, y1, z1, _ = point_a
-    a = x1 * x1
-    b = y1 * y1
-    ct = z1 * z1
-    # d = self.a * a
-    # d = self.ff_zero - a
-    h = self.ff_zero - a - b
-    et = x1 + y1
-    e = (et * et) + h
-    g = b - a
-    f = g - ct - ct
-    x3 = e * f
-    y3 = g * h
-    z3 = f * g
-    t3 = e * h
-    return ECPoint[FieldEle]([x3, y3, z3, t3], self)
-
-  def point_lshift(self, point_a: ECPoint[FieldEle], shift: int):
-    if point_a.is_zero():
-      return point_a.copy()
-
-    for _ in range(shift):
-      point_a = self.double_general(point_a)
-    return point_a
-
-  def twist(self, point_a: List[FieldEle]):
-    # https://en.wikipedia.org/wiki/Montgomery_curve
-    x, y = point_a
-    # Convert to montgomery
-    xm = self.s * (x - self.alpha)
-    ym = self.s * y
-    # Convert to edwards
-    if ym == self.ff_zero:
-      return None
-    xt = xm / ym
-
-    yt_denom = xm + self.ff_one
-    if yt_denom == self.ff_zero:
-      return None
-    yt = (xm - self.ff_one) / (yt_denom)
-
-    xt = xt * self.t
-    return [xt, yt]
-
-  def untwist(self, point_a: List[FieldEle]):
-    xt, yt = point_a
-    xt = xt / self.t
-    # print("ut", xt, yt)
-    # Convert to montgomery
-    xm = (self.ff_one + yt) / ((self.ff_one - yt))
-    ym = (self.ff_one + yt) / ((self.ff_one - yt) * xt)
-    # print("um", xm, ym)
-    # Convert to weierstrass
-    three = self.ff_zero.copy(3)
-    x = (xm / self.mb) + (self.ma / (three * self.mb))
-    y = ym / self.mb
-    # print("uw", x, y)
-    return [x, y]
-
-  def convert_from_affine(self, point_a):
-    # apply twist?
-    return NotImplementedError
-
-  def convert_to_twisted_edwards_affine(
-      self, point_a: ECPoint[FieldEle]
-  ) -> ECPoint[FieldEle]:
-    new_point = point_a.copy()
-    if new_point.coordinates is not None:
-      new_point.coordinates.clear()
-      x, y, z = point_a[:3]
-      inv_z = self.ff_one / z
-      x2 = x * inv_z
-      y2 = y * inv_z
-      new_point.append(x2)
-      new_point.append(y2)
-      new_point.append(self.ff_one)
-      new_point.append(self.ff_one)
-    return new_point
-
-  def convert_to_affine(self, point_a: ECPoint[FieldEle]) -> ECPoint[FieldEle]:
-    new_point = self.convert_to_twisted_edwards_affine(point_a)
-    twisted_coords = new_point[:2]
-    new_point[:2] = self.untwist(twisted_coords)
-    return new_point
-
-  def zero(self):
-    return [self.ff_zero, self.ff_one, self.ff_one, self.ff_zero]
-
-  def twist_int_coordinates(self, coordinates: List[int]) -> List[int]:
-    ff_coordinates = [
-        self.ff_zero.copy(coordinate) for coordinate in coordinates
-    ]
-    ff_coordinates = self.twist(ff_coordinates)
-    if ff_coordinates is None:
-      return [0, 1, 1, 0]  # zero
-    ff_coordinates.append(self.ff_one.copy())
-    ff_coordinates.append(ff_coordinates[0] * ff_coordinates[1])
-    return [int(coord.value) for coord in ff_coordinates]
-
-  def twist_projective(self, point_a):
-    x, y, z = point_a
-    xm = self.s * (x - self.alpha)
-    ym = self.s * y
-    # Convert to edwards
-    # Common denominator
-    zt = z * ym * (xm + self.ff_one)
-    xt = xm * (xm + self.ff_one)
-    yt = (xm - self.ff_one) * ym
-
-    xt = xt * self.t
-    return [xt, yt, zt]
-
-
-class TwistedInvertedXYZ(ECCSWeierstrass):
-
-  def convert_from_affine(self, point_a):
-    x, y = point_a
-    return [y, x, x * y]
-
-  # Looks like the cheapest strongly unified three coordinate option
-  # https://www.hyperelliptic.org/EFD/g1p/data/twisted/inverted/addition/add-2008-bbjlp
