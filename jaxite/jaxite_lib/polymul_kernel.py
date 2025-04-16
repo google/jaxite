@@ -82,9 +82,9 @@ def bat_matmul(lhs: jax.Array, y: jax.Array):
 
 
 def _i32_matmul_unreduced_CGGI(lhs, rhs):
-  """
-    Modified from i32_matmul_unreduced to incorporate CGGI tricks for better 
-    efficiency.
+  """Modified from i32_matmul_unreduced to incorporate CGGI tricks for better
+
+  efficiency.
   """
   lax = jax.lax
   m, k, n = lhs.shape[0], lhs.shape[1], rhs.shape[1]
@@ -191,15 +191,16 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
           out_specs=pl.BlockSpec((block_b, m // 2, n), lambda b: (b, 0, 0)),
           out_shape=jax.ShapeDtypeStruct((b, m // 2, n), jnp.int32),
           grid=(steps_b,),
-          compiler_params=dict(
-              mosaic=dict(vmem_limit_bytes=int(2**10 * 10**15))
-          ),  # set the vem limit to 32 MiB, it could be up to 128 MiB
+          compiler_params=pltpu.TPUCompilerParams(
+              # Set the vem limit to 32 MiB, it could be up to 128 MiB.
+              vmem_limit_bytes=int(2**10 * 10**15)
+          ),
       )(
           poly_vec1[:, None].astype(jnp.int32), poly_mat2.astype(jnp.int32)
       ).reshape(
-          b, m//2, n
+          b, m // 2, n
       ),
-      axis=(0, ),
+      axis=(0,),
   ).astype(jnp.uint32)[:real_m]
 
 
