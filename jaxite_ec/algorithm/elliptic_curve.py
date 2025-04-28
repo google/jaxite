@@ -109,7 +109,7 @@ class ECPoint(Generic[T]):
   def __str__(self) -> str:
     if self.is_zero():
       return 'Point, O'
-    coord_strs = [coord.hex_value_str() for coord in self.coordinates]
+    coord_strs = [coord.hex_value_str() for coord in self.coordinates]  # pytype: disable=attribute-error
     return 'Point, ' + ', '.join(coord_strs)
 
 
