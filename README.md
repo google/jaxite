@@ -1,7 +1,7 @@
 # Jaxite
 
 Jaxite is a fully homomorphic encryption backend targeting TPUs and GPUs,
-written in [JAX](https://github.com/google/jax).
+written in [JAX](https://github.com/jax-ml/jax).
 
 It implements the [CGGI cryptosystem](https://eprint.iacr.org/2018/421) with
 some optimizations, and is a supported backend for [Google's FHE
