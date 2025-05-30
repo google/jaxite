@@ -191,7 +191,7 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
           out_specs=pl.BlockSpec((block_b, m // 2, n), lambda b: (b, 0, 0)),
           out_shape=jax.ShapeDtypeStruct((b, m // 2, n), jnp.int32),
           grid=(steps_b,),
-          compiler_params=pltpu.TPUCompilerParams(
+          compiler_params=pltpu.CompilerParams(
               # Set the vem limit to 32 MiB, it could be up to 128 MiB.
               vmem_limit_bytes=int(2**10 * 10**15)
           ),
@@ -310,7 +310,7 @@ def negacyclic_vector_matrix_polymul_bat(
             grid=(18,),
         ),
         out_shape=jax.ShapeDtypeStruct((b, n, n), jnp.int32),
-        compiler_params=pltpu.TPUCompilerParams(
+        compiler_params=pltpu.CompilerParams(
             dimension_semantics=("parallel",)
         ),
     )(poly_vec1[:, None].astype(jnp.int32))
