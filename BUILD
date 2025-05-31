@@ -435,3 +435,39 @@ multichip_tpu_test(
         "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
+
+py_test(
+    name = "rns_test",
+    size = "small",
+    timeout = "moderate",
+    srcs = ["jaxite/jaxite_ckks/rns_test.py"],
+    deps = [
+        ":jaxite",
+        ":test_utils",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
+        "@jaxite_deps_hypothesis//:pkg",
+        "@jaxite_deps_jax//:pkg",
+        "@jaxite_deps_jaxlib//:pkg",
+        "@jaxite_deps_numpy//:pkg",
+        "@jaxite_deps_parameterized//:pkg",
+    ],
+)
+
+gpu_tpu_test(
+    name = "ckks_test",
+    size = "small",
+    timeout = "moderate",
+    srcs = ["jaxite/jaxite_ckks/ckks_test.py"],
+    deps = [
+        ":jaxite",
+        ":test_utils",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
+        "@jaxite_deps_hypothesis//:pkg",
+        "@jaxite_deps_jax//:pkg",
+        "@jaxite_deps_jaxlib//:pkg",
+        "@jaxite_deps_numpy//:pkg",
+        "@jaxite_deps_parameterized//:pkg",
+    ],
+)
