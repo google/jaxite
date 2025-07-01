@@ -8,3 +8,4 @@ opt-einsum==3.3.0
 scipy==1.10.1
 sortedcontainers==2.4.0
 gmpy2==2.2.1
+parameterized==0.8.1
