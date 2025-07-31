@@ -44,8 +44,8 @@ py_library(
         "@jaxite_deps_gmpy2//:pkg",
         "@jaxite_deps_jax//:pkg",
         "@jaxite_deps_jaxlib//:pkg",
-        # copybara: jax:pallas_lib
-        # copybara: jax:pallas_tpu
+        # copybara: jax/experimental:pallas_lib
+        # copybara: jax/experimental:pallas_tpu
         "@jaxite_deps_numpy//:pkg",
     ],
 )
