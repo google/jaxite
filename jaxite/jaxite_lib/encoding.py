@@ -64,7 +64,9 @@ class EncodingParameters:
 
 
 def encode(
-    message: Union[types.LweCleartext, jnp.ndarray], params: EncodingParameters
+    message: Union[types.LweCleartext, jnp.ndarray],
+    params: EncodingParameters,
+    test_polynomial_encoding: bool = False,
 ) -> Union[types.LwePlaintext, jnp.ndarray]:
   """Encode a plaintext or array of plaintexts for use in a TFHE ciphertext.
 
@@ -90,12 +92,16 @@ def encode(
   """
   dtype = types.LwePlaintext
   msg_arr = jnp.atleast_1d(message).astype(dtype)
-  if (msg_arr > dtype(params.message_max)).any() or (
-      msg_arr < dtype(params.message_min)
-  ).any():
+  message_max = dtype(params.message_max)
+  if test_polynomial_encoding:
+    # The test polynomial encoding needs to consider both message and padding
+    # bits.
+    message_max = 2**(params.padding_bit_length + params.message_bit_length)
+  message_min = dtype(params.message_min)
+  if (msg_arr > message_max).any() or (msg_arr < message_min).any():
     raise ValueError(
         f'{message} is outside of allowable bounds '
-        f'[{params.message_min}, {params.message_max}].'
+        f'[{message_min}, {message_max}].'
     )
 
   return message << dtype(params.error_bit_length)

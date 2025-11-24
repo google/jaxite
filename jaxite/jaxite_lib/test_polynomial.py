@@ -62,7 +62,8 @@ def _pad_for_error(
 
   Because the coefficients in the part of the first block wrap around in the
   negative direction (due to the negacyclic property), we must negate those
-  terms.
+  terms. The modulus of the negated terms need to include both the message bits
+  and the padding bits.
 
   Args:
     polynomial: the input polynomial coefficients, as a jax array.
@@ -127,12 +128,20 @@ def gen_test_polynomial(
     )
 
   padded = _pad_for_error(
-      cleartext_coefficients, mod_degree, message_space_size
+      cleartext_coefficients,
+      mod_degree,
+      2
+      ** (
+          encoding_params.padding_bit_length
+          + encoding_params.message_bit_length
+      )
   )
 
   # Encode the coefficients, because blind_rotate will produce as output one of
   # the coefficients, which is then interpreted as an LWE ciphertext.
-  test_polynomial = encoding.encode(padded, encoding_params)
+  test_polynomial = encoding.encode(
+      padded, encoding_params, True
+  )
 
   return rlwe.RlwePlaintext(
       message=test_polynomial,

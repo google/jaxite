@@ -43,7 +43,7 @@ class TestPolynomialTest(parameterized.TestCase):
 
     coefficients = jnp.array([1, 1, 0, 0], dtype=jnp.uint32)
     expected_coefficients = jnp.array(
-        [1, 1, 1, 0, 0, 0, 0, 3], dtype=jnp.uint32
+        [1, 1, 1, 0, 0, 0, 0, 15], dtype=jnp.uint32
     )
 
     test_poly = test_polynomial.gen_test_polynomial(
@@ -103,7 +103,7 @@ class TestPolynomialTest(parameterized.TestCase):
         0, 0, 0, 0,
         0, 0, 0, 0,
         0, 0, 0, 0,
-        6, 6,  # == -2 mod 8
+        30, 30,  # == -2 mod 32
     ], dtype=jnp.uint32)
     # pyformat: enable
     # yapf: enable
