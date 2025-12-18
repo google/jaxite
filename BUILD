@@ -5,7 +5,7 @@ load("@rules_license//rules:license.bzl", "license")
 load("@rules_python//python:defs.bzl", "py_library", "py_test")
 
 package(
-    default_applicable_licenses = ["@jaxite//:license"],
+    default_applicable_licenses = [":license"],
     default_visibility = [
         "//visibility:public",
     ],
