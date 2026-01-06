@@ -379,7 +379,7 @@ def external_product(
       message=output,
   )
 
-
+@jax.named_call
 @functools.partial(jax.jit, static_argnums=(2, 3))
 def jit_external_product(
     rgsw_ct: jnp.ndarray,
@@ -537,55 +537,67 @@ def jit_blind_rotate(
   # Using the improved blind rotate from Bourse-Minelli-Minihold-Paillier
   # (BMMP17: https://eprint.iacr.org/2017/1114), a trick uses a larger
   # bootstrapping key to reduce the number of external products required by 1/2.
+  unroll_factor = None
   if use_bmmp:
     num_loop_terms = (coefficient_index.shape[0] - 1) // 2
+    if num_loop_terms % 8 == 0:
+      unroll_factor = 8
   else:
     num_loop_terms = coefficient_index.shape[0] - 1
 
-  def one_external_product(j, c_prime_accum):
+  def _unrolled_loop_body(k, c_prime_accum):
     if use_bmmp:
       # Doing this computation inside the external product loop improves cache
       # locality, resulting in reduced data copying.
-      power1 = coefficient_index[2 * j] + coefficient_index[2 * j + 1]
-      power2 = coefficient_index[2 * j]
-      power3 = coefficient_index[2 * j + 1]
+      power1 = coefficient_index[2 * k] + coefficient_index[2 * k + 1]
+      power2 = coefficient_index[2 * k]
+      power3 = coefficient_index[2 * k + 1]
       bmmp_factor = (
           matrix_utils.scale_by_x_power_n_minus_1(  # Rotation.
-              power1, bsk[3 * j], log_modulus=log_coefficient_modulus
+              power1, bsk[3 * k], log_modulus=log_coefficient_modulus
           )
           + matrix_utils.scale_by_x_power_n_minus_1(
-              power2, bsk[3 * j + 1], log_modulus=log_coefficient_modulus
+              power2, bsk[3 * k + 1], log_modulus=log_coefficient_modulus
           )
           + matrix_utils.scale_by_x_power_n_minus_1(
-              power3, bsk[3 * j + 2], log_modulus=log_coefficient_modulus
+              power3, bsk[3 * k + 2], log_modulus=log_coefficient_modulus
           )
       ).astype(jnp.uint32)
-      return c_prime_accum + jit_external_product(
+      # The external product is equivalent to a CMUX where the `else` branch is
+      # zero.
+      c_prime_accum = c_prime_accum + jit_external_product(
           rgsw_ct=bmmp_factor,
           rlwe_ct=c_prime_accum,
           decomposition_params=decomposition_params,
           use_bat=False,
       )
       # c'_mul = c' * X^{a_j^tilde} (for each entry in c')
+      return c_prime_accum
     else:
-      # where a_j^tilde = coefficient_index[j] #Disabled BMMP
+      # where a_j^tilde = coefficient_index[k] #Disabled BMMP
       c_prime_mul = matrix_utils.monomial_mul_list(
           c_prime_accum,
-          coefficient_index[j],
+          coefficient_index[k],
           log_coefficient_modulus,
       ).astype(jnp.uint32)
 
       # Update c_prime with the output of the CMUX operation, where either
       # `c_prime` or `c_prime * X^{a_j^tilde}` is chosen by `bsk` at index j.
       return jit_cmux(
-          control=bsk[j],
+          control=bsk[k],
           eq_zero=c_prime_accum,
           neq_zero=c_prime_mul,
           decomposition_params=decomposition_params,
           use_bat=use_bat,
       )
 
-  return jax.lax.fori_loop(0, num_loop_terms, one_external_product, c_prime)
+  return jax.lax.fori_loop(
+      0,
+      num_loop_terms,
+      _unrolled_loop_body,
+      c_prime,
+      unroll=unroll_factor,
+  )
 
 
 def sample_extract(ciphertext: rlwe.RlweCiphertext) -> types.LweCiphertext:
