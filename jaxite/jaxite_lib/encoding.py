@@ -106,6 +106,24 @@ def encode(
 
   return message << dtype(params.error_bit_length)
 
+def decode_without_removing_padding(
+    plaintext: types.LwePlaintext, params: EncodingParameters
+) -> types.LweCleartext:
+  """Decode a plaintext without removing padding.
+
+  Args:
+    plaintext: the encoded plaintext message.
+    params: the parameters of the encoding.
+
+  Returns:
+    The cleartext message.
+  """
+  shifted = remove_noise(plaintext, params) >> params.error_bit_length
+  message_padding_space_mask = (
+      1 << params.message_bit_length + params.padding_bit_length
+  ) - 1
+  return types.LweCleartext(shifted & message_padding_space_mask)
+
 
 def decode(
     plaintext: types.LwePlaintext, params: EncodingParameters

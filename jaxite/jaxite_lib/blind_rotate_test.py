@@ -551,6 +551,73 @@ class BlindRotateTest(parameterized.TestCase):
     ]
     np.testing.assert_array_equal(expected_cleartext, decoded)
 
+  def test_blind_rotate_doesnt_set_padding_bit(self):
+    # This test case ensures negated coefficients are handled correctly in blind
+    # rotate.
+    lwe_dim = 630
+    seed = 0
+    scheme_params = parameters.SchemeParameters(
+        plaintext_modulus=2**self.log_plaintext_modulus,
+        lwe_dimension=lwe_dim,
+        polynomial_modulus_degree=64,
+        rlwe_dimension=1,
+    )
+
+    # because the input to blind rotate is supposed to be scaled to have
+    # coefficients in range 0, ..., 2N, we set the upper bound of LWE a_i
+    # samples appropriately.
+    lwe_rng = random_source.PseudorandomSource(
+        seed=seed,
+        normal_std=0,
+        uniform_bounds=(0, 0),
+    )
+    rlwe_rng = random_source.PseudorandomSource(seed=seed, normal_std=0)
+
+    noisy_encoding = encoding.EncodingParameters(
+        total_bit_length=32,
+        message_bit_length=3,
+        padding_bit_length=1,
+    )
+    rot_poly = test_polynomial.gen_test_polynomial(
+        jnp.array([1, 0, 0, 0, 0, 0, 0, 0], dtype=jnp.uint32),
+        noisy_encoding,
+        scheme_params,
+    )
+    rot_poly_ct = test_polynomial.trivial_encryption(rot_poly, scheme_params)
+
+    lwe_key = lwe.gen_key(params=scheme_params, prg=lwe_rng)
+    rlwe_key = rlwe.gen_key(params=scheme_params, prg=rlwe_rng)
+    rgsw_key = rgsw.key_from_rlwe(rlwe_key)
+    bsk = bootstrap.gen_bootstrapping_key(
+        lwe_sk=lwe_key,
+        rgsw_sk=rgsw_key,
+        decomposition_params=self.decomposition_params,
+        prg=rlwe_rng,
+    )
+    ciphertext = lwe.encrypt(
+        plaintext=types.LwePlaintext(0), sk=lwe_key, prg=lwe_rng
+    )
+    negative_noise = -2
+    ciphertext = ciphertext.at[-1].set(ciphertext[-1] + negative_noise)
+
+    rotated_rlwe_ciphertext = bootstrap.blind_rotate(
+        rot_polynomial=rot_poly_ct,
+        coefficient_index=ciphertext,
+        bsk=bsk,
+        decomposition_params=self.decomposition_params,
+    )
+    rotated_plaintext = rlwe.decrypt(
+        ciphertext=rotated_rlwe_ciphertext,
+        sk=rlwe_key,
+        encoding_params=noisy_encoding,
+    )
+
+    decoded = [
+        encoding.decode_without_removing_padding(x, noisy_encoding)
+        for x in rotated_plaintext.message
+    ]
+    np.testing.assert_equal(decoded[0], 1)
+
 
 if __name__ == '__main__':
   absltest.main()
