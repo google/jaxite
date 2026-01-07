@@ -1108,7 +1108,6 @@ def barret_reduction_static_q(z, q, s):
 
   This implementation specializes on the value of `q`, which allows XLA to
   apply aggressive compile-time optimizations.
-  TODO: remove `m` in the function arguments
 
   Args:
     z: The input value.

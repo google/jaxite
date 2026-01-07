@@ -7,6 +7,26 @@ It implements the [CGGI cryptosystem](https://eprint.iacr.org/2018/421) with
 some optimizations, and is a supported backend for [Google's FHE
 compiler](https://github.com/google/fully-homomorphic-encryption).
 
+## Table of Contents
+* [What is Homomorphic Encryption?](#what-is-homomorphic-encryption)
+* [Project Goals](#project-goals)
+* [Quick start](#quick-start)
+* [Contributors](#contributors)
+* [License](#license)
+* [Disclaimer](#disclaimer)
+
+## What is Homomorphic Encryption?
+
+Homomorphic Encryption (HE) is a powerful cryptographic technique that allows computations to be performed directly on encrypted data, without ever needing to decrypt it. This means sensitive information can be processed by untrusted services (like cloud providers) while maintaining data privacy and security. Jaxite provides an efficient implementation of these complex HE schemes within the JAX framework.
+
+## Project Goals
+
+Jaxite's primary goals include:
+*   **Efficient Implementation:** Providing high-performance implementations of Homomorphic Encryption algorithms.
+*   **Hardware Acceleration:** Leveraging JAX to enable seamless execution and acceleration on modern hardware like TPUs and GPUs.
+*   **FHE Compiler Backend:** Serving as a robust backend for Google's Fully Homomorphic Encryption compiler, facilitating advanced research and practical applications of FHE.
+*   **Accessibility:** Making advanced FHE capabilities more accessible to researchers and developers within the JAX ecosystem.
+
 ## Quick start
 
 ### `jaxite_bool`
