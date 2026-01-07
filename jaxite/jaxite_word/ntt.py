@@ -6,7 +6,7 @@ import functools
 import jax
 import jax.numpy as jnp
 import numpy as np
-from typing import List
+from typing import List, Set
 
 
 ########################
@@ -412,7 +412,7 @@ def find_all_root_of_unity(n: int, q: int) -> List[int]:
   return all_root_of_unity
 
 
-def prime_factors(n):
+def prime_factors(n: int) -> Set[int]:
   """Return the set of prime factors of n."""
   factors = set()
   # Divide out factors of 2
