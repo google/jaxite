@@ -29,7 +29,28 @@ fallback_i32_matmul = jax.vmap(
 )
 
 
-def _i32_matmul_unreduced(lhs, rhs):
+def _i32_matmul_unreduced(lhs: jax.Array, rhs: jax.Array) -> jax.Array:
+  """Performs a specialized 32-bit integer matrix multiplication.
+
+  This function implements a hardware-optimized matrix multiplication where
+  32-bit integer inputs are broken down into 8-bit chunks. It processes these
+  chunks, applying bit shifts and masks to simulate a wider bit-width
+  multiplication using smaller 8-bit operations, suitable for certain hardware
+  architectures (like TPUs).
+
+  The term "unreduced" indicates that the output is an accumulation of
+  products without applying a final modular reduction (e.g., modulo q). This
+  allows for subsequent operations to be performed on the intermediate
+  results before a final reduction.
+
+  Args:
+    lhs: The left-hand side input matrix (JAX array of jnp.int32).
+    rhs: The right-hand side input matrix (JAX array of jnp.int32).
+
+  Returns:
+    A JAX array representing the result of the matrix multiplication,
+    before any modular reduction.
+  """
   lax = jax.lax
   m, k, n = lhs.shape[0], lhs.shape[1], rhs.shape[1]
   lhs_i8 = jnp.broadcast_to(lhs, (4, *lhs.shape))
