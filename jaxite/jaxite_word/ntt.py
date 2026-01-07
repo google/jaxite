@@ -6,6 +6,7 @@ import functools
 import jax
 import jax.numpy as jnp
 import numpy as np
+from typing import List
 
 
 ########################
@@ -399,7 +400,7 @@ def hpmatmul_offline_compile_bat(mat_a, q):
   return left_mat
 
 
-def find_all_root_of_unity(n, q):
+def find_all_root_of_unity(n: int, q: int) -> List[int]:
   """Find the n-th root of unity in the field of integers modulo q."""
   all_root_of_unity = []
   for v in range(2, q):
