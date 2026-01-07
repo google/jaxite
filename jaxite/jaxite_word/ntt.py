@@ -43,12 +43,52 @@ def chunk_decomposition(x, chunkwidth=8):
 def rechunkify(arr_a, chunkwidth):
   """Rechunkify the input array back to the desired precision.
 
+  This function accumulates partial sums that might exceed the `chunkwidth`
+  precision and re-distributes any overflow (carry bits) across chunks
+  until all chunks are within the defined `chunkwidth`.
+
+  The process handles potential carries by repeatedly splitting chunks into
+  lower and upper halves, shifting, and accumulating. The illustration below
+  shows how overlapping partial sums are handled to prevent overflow:
+
+  Data Type Illustration:
+             LSB             MSB
+            |-----------------> bit
+            |   a0
+            |  ==--
+            |     a1
+            |    ==--
+            |        a2
+            |       ==--
+            |          a3
+            v         ==--
+
+    whole   a0   a1   a2   a3
+    precision ==-- ==-- ==-- ==--
+
+    lower   a0 a1 a2 a3
+    half    == == == ==
+
+    upper   a0 a1 a2 a3
+    half    -- -- -- --
+
+  Chunk Splitting and Vectorized Accumulation (simplified):
+    1.  Split each array element into a lower half (within `chunkwidth`)
+        and an upper half (carry bits).
+    2.  Pad and align these halves to prepare for accumulation.
+    3.  Vectorizedly accumulate the padded halves.
+    4.  Repeatedly process any chunks that still exceed `bitmask` by
+        splitting them further and redistributing their carry bits until
+        all chunks are within `chunkwidth`.
+    5.  A final adjustment is made to the top chunk to avoid overflow.
+
   Args:
-      arr_a: The input array.
-      chunkwidth: The chunkwidth.
+      arr_a: The input array of chunked data.
+      chunkwidth: The desired precision (e.g., 8, 16, 32 bits) for each chunk.
 
   Returns:
-      The rechunkified array.
+      The rechunkified array, where each element is within `chunkwidth` and
+      carries have been propagated.
   """
   dtype_double_length = jnp.uint16
   if chunkwidth == 16:
@@ -58,71 +98,6 @@ def rechunkify(arr_a, chunkwidth):
 
   # assume the precision of partial sum is <= 2 * precision of input value.
   bitmask = (1 << chunkwidth) - 1
-
-  # # Data Type Illustration
-  #     We need to accumulate these data
-  #     - Could directly perform bitwidth concatenation to generate the final
-  #       result if there is no overlap across each partial sum
-  #          LSB             MSB
-  #         |-----------------> bit
-  #         |   a0
-  #         |  ==--
-  #         |     a1
-  #         |    ==--
-  #         |        a2
-  #         |       ==--
-  #         |          a3
-  #         v         ==--
-
-  #   whole        a0   a1   a2   a3
-  # precision     ==-- ==-- ==-- ==--
-
-  #   lower       a0 a1 a2 a3
-  #    half       == == == ==
-
-  #   upper       a0 a1 a2 a3
-  #    half       -- -- -- --
-
-  # # Chunk Splitting -> upper and lower half
-  # padding to align
-  #   lower       a0 a1 a2 a3 0
-  #    half       == == == == ==
-
-  #   upper       0  a0 a1 a2 a3
-  #    half       -- -- -- -- --
-
-  # # Vectorized Accumulation
-  #   lower         a0    a1    a2    a3    0
-  #    half         ==    ==    ==    ==    ==
-  #                 +     +     +     +     +
-  #   upper         0     a0    a1    a2    a3
-  #    half         --    --    --    --    --
-
-  # -> result       b0    b1    b2    b3    b4
-  #                 --  1/0-- 1/0-- 1/0--   --
-  #    (b1 and b4 does not have carry for sure.)
-
-  #             Each result chunk might have one more bit for carry.
-  #             Perform one more chunk decomposition and accumulation.
-
-  # # One more Chunk Splitting for partial sum "b" to take care of carry bit.
-  #    carry      b0  b1  b2  b3  b4
-  #               0  1/0 1/0 1/0  0
-
-  #    carry      b4  b0  b1  b2  b3
-  #    right      0   0  1/0 1/0 1/0
-  #    shift
-  #    (wrap around rotation, b4 is always zero so will be correct)
-  #               +   +   +   +   +
-  #   lower       b0  b1  b2  b3  b4
-  #    half       --  --  --  --  --
-  #               =   =   =   =   =
-  #               c0  c1  c2  c3  c4
-  # ->            --  --  --  --  1/0--
-  #    (! c4 might overflow, need one more chunk decomposition)
-
-  #               c0  c1  c2  c3  c4  c5
-  # ->            --  --  --  --  --  1/0
 
   # Chunk Splitting -> upper and lower half
   arr_a_lower_half = jnp.bitwise_and(arr_a, bitmask)
