@@ -128,6 +128,22 @@ def _i32_matmul_unreduced_CGGI(lhs, rhs):
 
 
 def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
+  """Computes a modular polynomial vector-matrix multiplication.
+
+  This computes the vector-matrix product of the two arguments, where each
+  element-wise product is computed in the polynomial ring 
+  `(Z / 2**32 Z)[x] / (x^N + 1)`, where N is the size of axis 1
+  of poly_vec1.
+
+  This function is optimized for TPU execution using Pallas.
+
+  Args:
+    poly_vec1: A vector of polynomials.
+    poly_mat2: A matrix of polynomials.
+
+  Returns:
+    The result of the polynomial multiplication.
+  """
   # b is the product of the RLWE dimension (e.g., 3) and the number of
   # decomposition levels in the decomposition parameters (e.g., 6).
   # n is the degree of the RLWE polynomials.
@@ -144,6 +160,7 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
   # multiple of 8.
   real_m = m
   m = 8
+
   poly_mat2 = jnp.pad(
       poly_mat2,
       ((0, 0), (0, (m // 2) - real_m), (0, 0)),
@@ -152,67 +169,51 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
   )
   poly_mat2 = jnp.concatenate((poly_mat2, poly_mat2), axis=(1))
   if n % 128 != 0:
-    raise ValueError(f"Input size {n} is not a multiple of 128")
-  dtype = poly_vec1.dtype
-
-  def vec_mat_polymul_kernel_single_batch(vec_ref, mat_ref, out_ref):
-    chunk = jnp.broadcast_to(vec_ref[...], (128, n))
-    chunk = pltpu.roll(chunk, 0, 1, stride=1, stride_axis=0)
-    chunk_row_indices = jax.lax.broadcasted_iota(
-        dtype=jnp.int32, shape=(128, n), dimension=0
-    )
-    chunk_col_indices = jax.lax.broadcasted_iota(
-        dtype=jnp.int32, shape=(128, n), dimension=1
-    )
-    toeplitz_chunks = []
-    for _ in range(0, n, 128):
-      toeplitz_chunks.append(
-          jnp.where(chunk_row_indices > chunk_col_indices, -chunk, chunk)
-      )
-      # Because the vector registers are aligned to size 128, this roll
-      # operation lowers to telling the TPU to refer to a different register,
-      # rather than actually applying any rolling operation. Hence, the op
-      # produces no hardware instructions.
-      chunk = pltpu.roll(chunk, 128, 1)
-      chunk_row_indices = chunk_row_indices + 128
-    vec_toeplitz = jax.lax.concatenate(toeplitz_chunks, dimension=0)
-
-    assert vec_toeplitz.shape == (n, n)
-    result = _i32_matmul_unreduced_CGGI(mat_ref[...], vec_toeplitz)
-    assert result.shape == (m // 2, n), result.shape
-    out_ref[...] = result
+    raise ValueError(f'Input size {n} is not a multiple of 128')
 
   def vec_mat_polymul_kernel(vec_ref, mat_ref, out_ref):
-    for b in range(vec_ref.shape[0]):
-      vec_mat_polymul_kernel_single_batch(
-          vec_ref.at[b], mat_ref.at[b], out_ref.at[b]
+    """Pallas kernel for polynomial multiplication."""
+    for b_i in range(vec_ref.shape[0]):
+      chunk = jnp.broadcast_to(vec_ref[b_i, ...], (128, n))
+      chunk = pltpu.roll(chunk, 0, 1, stride=1, stride_axis=0)
+      chunk_row_indices = jax.lax.broadcasted_iota(
+          dtype=jnp.int32, shape=(128, n), dimension=0
       )
+      chunk_col_indices = jax.lax.broadcasted_iota(
+          dtype=jnp.int32, shape=(128, n), dimension=1
+      )
+      toeplitz_chunks = []
+      for _ in range(0, n, 128):
+        toeplitz_chunks.append(
+            jnp.where(chunk_row_indices > chunk_col_indices, -chunk, chunk)
+        )
+        # Because the vector registers are aligned to size 128, this roll
+        # operation lowers to telling the TPU to refer to a different register,
+        # rather than actually applying any rolling operation. Hence, the op
+        # produces no hardware instructions.
+        chunk = pltpu.roll(chunk, 128, 1)
+        chunk_row_indices = chunk_row_indices + 128
+      vec_toeplitz = jax.lax.concatenate(toeplitz_chunks, dimension=0)
 
-  block_b = 2
-  steps_b, rem_b = divmod(b, block_b)
-  if rem_b:
-    raise ValueError(f"b={b} is not a multiple of block_b={block_b}")
+      result = _i32_matmul_unreduced_CGGI(mat_ref[b_i, ...], vec_toeplitz)
+      out_ref[b_i, ...] = result
 
   return jnp.sum(
       pl.pallas_call(
           vec_mat_polymul_kernel,
           in_specs=(
-              pl.BlockSpec((block_b, 1, n), lambda b: (b, 0, 0)),
-              pl.BlockSpec((block_b, m, n), lambda b: (b, 0, 0)),
+              pl.BlockSpec((b, 1, n), lambda i: (i, 0, 0)),
+              pl.BlockSpec((b, m, n), lambda i: (i, 0, 0)),
           ),
-          out_specs=pl.BlockSpec((block_b, m // 2, n), lambda b: (b, 0, 0)),
+          out_specs=pl.BlockSpec((b, m // 2, n), lambda i: (i, 0, 0)),
           out_shape=jax.ShapeDtypeStruct((b, m // 2, n), jnp.int32),
-          grid=(steps_b,),
+          grid=(1,),
           compiler_params=pltpu.CompilerParams(
               # Set the vem limit to 32 MiB, it could be up to 128 MiB.
-              vmem_limit_bytes=int(2**10 * 10**15)
+              vmem_limit_bytes=int(2**10 * 2**15)
           ),
-      )(
-          poly_vec1[:, None].astype(jnp.int32), poly_mat2.astype(jnp.int32)
-      ).reshape(
-          b, m // 2, n
-      ),
-      axis=(0,),
+      )(poly_vec1[:, None].astype(jnp.int32), poly_mat2.astype(jnp.int32)),
+      axis=0,
   ).astype(jnp.uint32)[:real_m]
 
 
