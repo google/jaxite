@@ -88,11 +88,23 @@ def _i32_matmul_unreduced_CGGI(lhs, rhs):
   """
   lax = jax.lax
   m, k, n = lhs.shape[0], lhs.shape[1], rhs.shape[1]
-  lhs_i8 = jnp.broadcast_to(lhs, (2, *lhs.shape)).reshape((4, m//2, k))
-  lhs_shift = lax.broadcasted_iota(jnp.int32, lhs_i8.shape, dimension=0) * 8
-  lhs_i8 = lax.shift_right_logical(lhs_i8, lhs_shift)
-  lhs_i8 = lax.bitwise_and(lhs_i8, jnp.broadcast_to(0xFF, lhs_i8.shape))
-  lhs_i8 = lhs_i8.reshape((2 * m, k))
+  # Optimized byte extraction for the CGGI trick. This splits the 32-bit
+  # integers in the `lhs` matrix into their 8-bit components.
+  byte0 = lax.bitwise_and(lhs, 0xFF)
+  byte1 = lax.bitwise_and(lax.shift_right_logical(lhs, 8), 0xFF)
+  byte2 = lax.bitwise_and(lax.shift_right_logical(lhs, 16), 0xFF)
+  byte3 = lax.bitwise_and(lax.shift_right_logical(lhs, 24), 0xFF)
+
+  # Concatenate the bytes to form a new matrix.
+  lhs_i8 = jnp.concatenate(
+      [
+          byte0[: m // 2, :],
+          byte1[m // 2 :, :],
+          byte2[: m // 2, :],
+          byte3[m // 2 :, :],
+      ],
+      axis=0,
+  )
 
   out_shift_base = lax.mul(
       lax.broadcasted_iota(jnp.int32, (4, m//2, n), dimension=0), 8

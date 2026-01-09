@@ -585,7 +585,14 @@ def jit_blind_rotate(
           use_bat=use_bat,
       )
 
-  return jax.lax.fori_loop(0, num_loop_terms, one_external_product, c_prime)
+  unroll_factor = 8 if num_loop_terms % 8 == 0 else None
+  return jax.lax.fori_loop(
+      0,
+      num_loop_terms,
+      one_external_product,
+      c_prime,
+      unroll=unroll_factor,
+  )
 
 
 def sample_extract(ciphertext: rlwe.RlweCiphertext) -> types.LweCiphertext:
