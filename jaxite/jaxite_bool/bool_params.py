@@ -114,6 +114,7 @@ SCHEME_PARAMS_128_BIT_SECURITY = parameters.SchemeParameters(
 # Note: The following condition needs to be met for decomposition parameters
 # in order to avoid loss of precision:
 # (2^decomposition_log_base)^decomposition_level_count == plaintext_modulus.
+# Note: The TPU performance has been optimized for decomposition base < 8.
 BSK_DECOMP_PARAMS_128_BIT_SECURITY = decomposition.DecompositionParameters(
     log_base=4, level_count=6
 )

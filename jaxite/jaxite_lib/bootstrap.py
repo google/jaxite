@@ -397,7 +397,7 @@ def jit_external_product(
     )
   else:
     return polymul_kernel.negacyclic_vector_matrix_polymul(
-        decomposed_rlwe, rgsw_ct
+        decomposed_rlwe, rgsw_ct, decomposition_params.log_base
     )
 
 

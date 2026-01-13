@@ -1,5 +1,6 @@
 """Kernel for negacyclic vector-matrix polymul."""
 
+import functools
 import jax
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
@@ -82,12 +83,21 @@ def bat_matmul(lhs: jax.Array, y: jax.Array):
 
 
 def _i32_matmul_unreduced_CGGI(lhs, rhs):
-  """Modified from i32_matmul_unreduced to incorporate CGGI tricks for better
+  """Performs a 32-bit integer matrix multiplication with CGGI optimization.
 
-  efficiency.
+  This function is an optimized version of i32_matmul_unreduced for decomposed
+  vectors, where the RHS matrix is Toeplitzw with decomposition base < 8.
+
+  Args:
+    lhs: The left-hand side matrix of shape (m, k).
+    rhs: The right-hand side matrix of shape (k, n).
+
+  Returns:
+    The result of the matrix multiplication as a jnp.ndarray.
   """
   lax = jax.lax
   m, k, n = lhs.shape[0], lhs.shape[1], rhs.shape[1]
+
   # Optimized byte extraction for the CGGI trick. This splits the 32-bit
   # integers in the `lhs` matrix into their 8-bit components.
   byte0 = lax.bitwise_and(lhs, 0xFF)
@@ -106,44 +116,30 @@ def _i32_matmul_unreduced_CGGI(lhs, rhs):
       axis=0,
   )
 
+  # rhs is the Toeplitz matrix of the decomposed vector. The values are small
+  # (e.g. < 64) because the decomposition base < 8. We can cast to bfloat16
+  # directly without splitting into bytes, reducing the number of matmuls by 4x.
+  # Perform the matrix multiplication with float32 accumulation for precision.
+  raw_out = lax.dot(
+      lhs_i8.astype(jnp.bfloat16),
+      rhs.astype(jnp.bfloat16),
+      preferred_element_type=jnp.float32,  # Ensures accumulation in float32
+  ).astype(jnp.int32)
+  raw_out = raw_out.reshape((4, m // 2, n))
+
+  # Reconstruct the 32-bit integers from the 8-bit components. This is done by
+  # shifting the bytes back to their original positions and summing them up.
   out_shift_base = lax.mul(
-      lax.broadcasted_iota(jnp.int32, (4, m//2, n), dimension=0), 8
+      lax.broadcasted_iota(jnp.int32, (4, m // 2, n), dimension=0), 8
   )
-  acc = jnp.zeros((m//2, n), dtype=jnp.int32)
-  for rhs_shift in range(0, 32, 8):
-    # TODO(b/201562458): Don't multiply lhs rows with large shift.
-    rhs_i8 = lax.shift_right_logical(
-        rhs, jnp.broadcast_to(rhs_shift, rhs.shape)
-    )
-    rhs_i8 = lax.bitwise_and(rhs_i8, jnp.broadcast_to(0xFF, rhs_i8.shape))
-    # TODO(b/201562458): Use int8 matmuls once properly supported
-    raw_out = lax.dot(
-        lhs_i8.astype(jnp.bfloat16),
-        rhs_i8.astype(jnp.bfloat16),
-        preferred_element_type=jnp.float32,
-    ).astype(jnp.int32).reshape((4, m//2, n))
-    raw_out = jnp.left_shift(raw_out, out_shift_base + rhs_shift)
-    acc += raw_out[0] + raw_out[1] + raw_out[2] + raw_out[3]
-  return acc
+
+  shifted_out = jnp.left_shift(raw_out, out_shift_base)
+  return shifted_out[0] + shifted_out[1] + shifted_out[2] + shifted_out[3]
 
 
-def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
-  """Computes a modular polynomial vector-matrix multiplication.
-
-  This computes the vector-matrix product of the two arguments, where each
-  element-wise product is computed in the polynomial ring 
-  `(Z / 2**32 Z)[x] / (x^N + 1)`, where N is the size of axis 1
-  of poly_vec1.
-
-  This function is optimized for TPU execution using Pallas.
-
-  Args:
-    poly_vec1: A vector of polynomials.
-    poly_mat2: A matrix of polynomials.
-
-  Returns:
-    The result of the polynomial multiplication.
-  """
+def _decomposed_vector_matrix_polymul(
+    poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray
+):
   # b is the product of the RLWE dimension (e.g., 3) and the number of
   # decomposition levels in the decomposition parameters (e.g., 6).
   # n is the degree of the RLWE polynomials.
@@ -218,9 +214,9 @@ def _vector_matrix_polymul(poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray):
 
 
 @jax.named_call
-@jax.jit
+@functools.partial(jax.jit, static_argnums=(2,))
 def negacyclic_vector_matrix_polymul(
-    vec: jnp.ndarray, matrix: jnp.ndarray
+    vec: jnp.ndarray, matrix: jnp.ndarray, decomposition_log_base: int
 ) -> jnp.ndarray:
   """Computes a vector-matrix poly multiplication mod (X^N + 1).
 
@@ -241,8 +237,8 @@ def negacyclic_vector_matrix_polymul(
     )
 
   tpu_version = jax_helpers.get_tpu_version()
-  if n_vec % 128 == 0 and tpu_version >= 5:
-    return _vector_matrix_polymul(
+  if n_vec % 128 == 0 and tpu_version >= 5 and decomposition_log_base < 8:
+    return _decomposed_vector_matrix_polymul(
         vec.astype(jnp.int32), matrix.astype(jnp.int32)
     )
   else:
