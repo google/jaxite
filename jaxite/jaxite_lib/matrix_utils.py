@@ -181,7 +181,7 @@ def hpmatmul_conv_adapt_conv(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
 
   lhs: jax.Array = jax.lax.bitcast_convert_type(x, new_dtype=jnp.uint8)  # bnmp
   rhs: jax.Array = jax.lax.bitcast_convert_type(y, new_dtype=jnp.uint8)  # nk1q
-  # https://github.com/google/jax/issues/11483
+  # https://github.com/jax-ml/jax/issues/11483
   rhs = jax.lax.rev(rhs, [2])
   # rhs = jlax.rev(rhs, dimensions=[3])
 
