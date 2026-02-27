@@ -6,10 +6,9 @@ Assume:
 """
 
 import dataclasses
-from typing import Any
 
 import jax.numpy as jnp
-from jaxite.jaxite_ckks import rns_utils
+import jaxite.jaxite_word.util as util
 
 
 def _mod_exp(x: int, n: int, q: int) -> int:
@@ -29,7 +28,7 @@ def _primitive_root(m: int, q: int):
   Note: q-1 must be divisible by m for the primitive roots to exist. Also assume
         m is a power of two.
   """
-  if not rns_utils.is_power_of_two(m):
+  if not util.is_power_of_two(m):
     raise ValueError('`m` must be a power of two.')
   if (q - 1) % m != 0:
     raise ValueError('`q - 1` must be divisible by m.')
@@ -66,39 +65,39 @@ class Ntt:
   psis_inv_bitrev: list[int] = dataclasses.field(init=False)
 
   def __post_init__(self):
-    if not rns_utils.is_power_of_two(self.n):
+    if not util.is_power_of_two(self.n):
       raise ValueError('`n` must be a power of two.')
     if self.q % (2 * self.n) != 1:
       raise ValueError('`q - 1` must be divisible by 2N.')
 
     n = self.n
     q = self.q
-    self.n_inv_mod_q = rns_utils.inverse_mod(n, q)
+    self.n_inv_mod_q = util.modinv(n, q)
 
     # Generating the powers of primitive root psi to be used in Cooley-Tukey and
     # Gentleman-Sande.
     psi = _primitive_root(2 * n, q)
     self.psis_bitrev = [_mod_exp(psi, i, q) for i in range(n)]
     self.psis_inv_bitrev = list(self.psis_bitrev)
-    rns_utils.bit_reversal_array(self.psis_bitrev)
+    self.psis_bitrev = util.bit_reverse_array(self.psis_bitrev)
 
     self.psis_inv_bitrev = (
         self.psis_inv_bitrev[:1:] + self.psis_inv_bitrev[:0:-1]
     )
     neg_psi_inv = self.psis_inv_bitrev[1]  # psi^(n-1) = -psi^{-1} mod q
     psi_inv = (-neg_psi_inv) % q  # psi^{-1} mod q
-    rns_utils.bit_reversal_array(self.psis_inv_bitrev)
+    self.psis_inv_bitrev = util.bit_reverse_array(self.psis_inv_bitrev)
     self.psis_inv_bitrev[0] = (self.psis_inv_bitrev[0] * psi_inv) % q
     for i in range(1, n):
       self.psis_inv_bitrev[i] = (self.psis_inv_bitrev[i] * neg_psi_inv) % q
 
   def forward(self, coeffs: list[int]) -> None:
     """Forward NTT."""
-    self._iterative_cooley_tukey(coeffs, rns_utils.num_bits(len(coeffs)))
+    self._iterative_cooley_tukey(coeffs, util.num_bits(len(coeffs)))
 
   def backward(self, coeffs: list[int]) -> None:
     """Backward NTT (normalized)."""
-    self._iterative_gentleman_sande(coeffs, rns_utils.num_bits(len(coeffs)))
+    self._iterative_gentleman_sande(coeffs, util.num_bits(len(coeffs)))
     for i in range(len(coeffs)):
       coeffs[i] = (coeffs[i] * self.n_inv_mod_q) % self.q
 
