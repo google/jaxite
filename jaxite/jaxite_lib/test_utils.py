@@ -45,7 +45,7 @@ class ConsistencyChecker:
       self.insertion_order.append(name)
       self.records[name] = [value]
 
-  def check(self, asserter: ... = None) -> None:
+  def check(self, asserter=None) -> None:
     assert asserter is not None
     for name in self.insertion_order:
       print(f"Consistency check for {name}")
