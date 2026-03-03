@@ -1,25 +1,23 @@
 """Tests for RnsPolynomial."""
 
 import random
-
-from jaxite.jaxite_ckks import rns
-from jaxite.jaxite_ckks import rns_utils
-import parameterized
-
 from absl.testing import absltest
-from absl.testing import parameterized as parameterized_test
+from absl.testing import parameterized
+
+import jaxite.jaxite_word.rns as rns
+import jaxite.jaxite_word.util as util
 
 
-@parameterized.parameterized_class([
-    {"degree": 8, "moduli": [12289]},
-    {"degree": 16, "moduli": [12289, 65537]},
-    {"degree": 1024, "moduli": [12289, 65537]},
+@parameterized.named_parameters([
+    {"testcase_name": "deg8_single_mod", "degree": 8, "moduli": [12289]},
+    {"testcase_name": "deg16_two_mod", "degree": 16, "moduli": [12289, 65537]},
+    {
+        "testcase_name": "deg1024_two_mod",
+        "degree": 1024,
+        "moduli": [12289, 65537],
+    },
 ])
-class RnsPolynomialTest(absltest.TestCase):
-
-  def setUp(self):
-    super().setUp()
-    self.ntt_params = [rns.Ntt(self.degree, modulus) for modulus in self.moduli]
+class RnsPolynomialTest(parameterized.TestCase):
 
   def _random_coeffs(self, degree: int, modulus: int) -> list[int]:
     return [random.randint(0, modulus - 1) for _ in range(degree)]
@@ -30,9 +28,9 @@ class RnsPolynomialTest(absltest.TestCase):
     coeffs = [self._random_coeffs(degree, modulus) for modulus in moduli]
     return rns.RnsPolynomial(degree, moduli, coeffs, is_ntt=is_ntt)
 
-  def test_ntt(self):
-    ntt = rns.Ntt(self.degree, self.moduli[0])
-    coeffs = self._random_coeffs(self.degree, self.moduli[0])
+  def test_ntt(self, degree, moduli):
+    ntt = rns.Ntt(degree, moduli[0])
+    coeffs = self._random_coeffs(degree, moduli[0])
     # NTT^-1( NTT( coeffs )) should be the same as coeffs.
     evals = list(coeffs)
     ntt.forward(evals)
@@ -40,13 +38,13 @@ class RnsPolynomialTest(absltest.TestCase):
     ntt.backward(coeffs_back)
     self.assertEqual(coeffs, coeffs_back)
 
-  def test_iterative_cooley_tukey(self):
+  def test_iterative_cooley_tukey(self, degree, moduli):
     # Skip large degrees as we compute the expected results in O(n^2).
-    if self.degree >= 32:
+    if degree >= 32:
       return
 
-    n = self.degree
-    q = self.moduli[0]
+    n = degree
+    q = moduli[0]
     ntt = rns.Ntt(n, q)
     psi = rns._primitive_root(2 * n, q)
     coeffs = self._random_coeffs(n, q)
@@ -54,25 +52,24 @@ class RnsPolynomialTest(absltest.TestCase):
     # evaluation form of the polynomial has coefficients c'_i, i = 0..n-1, for
     # c'_i = sum(psi^j * coeffs[j] * psi^(2i*j), j = 0..n-1)
     expected_ntt_coeffs = [
-        sum([psi ** j * coeffs[j] * psi ** (2 * i * j) % q for j in range(n)])
-        % q
+        sum([psi**j * coeffs[j] * psi ** (2 * i * j) % q for j in range(n)]) % q
         for i in range(n)
     ]
-    rns_utils.bit_reversal_array(expected_ntt_coeffs)
+    expected_ntt_coeffs = util.bit_reverse_array(expected_ntt_coeffs)
     ntt_coeffs = coeffs.copy()
-    ntt._iterative_cooley_tukey(ntt_coeffs, rns_utils.num_bits(len(coeffs)))
+    ntt._iterative_cooley_tukey(ntt_coeffs, util.num_bits(len(coeffs)))
     self.assertEqual(ntt_coeffs, expected_ntt_coeffs)
 
-  def test_iterative_gentleman_sande(self):
+  def test_iterative_gentleman_sande(self, degree, moduli):
     # Skip large degrees as we compute the expected results in O(n^2).
-    if self.degree >= 32:
+    if degree >= 32:
       return
 
-    n = self.degree
-    q = self.moduli[0]
+    n = degree
+    q = moduli[0]
     ntt = rns.Ntt(n, q)
     psi = rns._primitive_root(2 * n, q)
-    psi_inv = rns_utils.inverse_mod(psi, q)
+    psi_inv = util.modinv(psi, q)
     ntt_coeffs = self._random_coeffs(n, q)
     # Since we want to compute negacyclic convolution in Z[X]/(q, X^n+1), the
     # coefficient form of the polynomial has coefficients c_i, i = 0..n-1, for
@@ -84,15 +81,15 @@ class RnsPolynomialTest(absltest.TestCase):
         for i in range(n)
     ]
     coeffs_bitrev = ntt_coeffs.copy()
-    rns_utils.bit_reversal_array(coeffs_bitrev)
+    coeffs_bitrev = util.bit_reverse_array(coeffs_bitrev)
     ntt._iterative_gentleman_sande(
-        coeffs_bitrev, rns_utils.num_bits(len(ntt_coeffs))
+        coeffs_bitrev, util.num_bits(len(ntt_coeffs))
     )
     self.assertEqual(coeffs_bitrev, expected_coeffs)
 
-  def test_rns_polynomial_addition(self):
-    poly0 = self._random_rns_polynomial(self.degree, self.moduli, is_ntt=False)
-    poly1 = self._random_rns_polynomial(self.degree, self.moduli, is_ntt=False)
+  def test_rns_polynomial_addition(self, degree, moduli):
+    poly0 = self._random_rns_polynomial(degree, moduli, is_ntt=False)
+    poly1 = self._random_rns_polynomial(degree, moduli, is_ntt=False)
 
     # First compute a + b in the coefficient form.
     poly_sum0 = poly0 + poly1
@@ -100,38 +97,40 @@ class RnsPolynomialTest(absltest.TestCase):
 
     # Then compute a + b in the NTT form. The result (once converted back to the
     # coefficient form) should be the same.
-    poly0.to_ntt_form(self.ntt_params)
-    poly1.to_ntt_form(self.ntt_params)
+    ntt_params = [rns.Ntt(degree, modulus) for modulus in moduli]
+    poly0.to_ntt_form(ntt_params)
+    poly1.to_ntt_form(ntt_params)
     assert poly0.is_ntt
     assert poly1.is_ntt
     poly_sum1 = poly0 + poly1
     assert poly_sum1.is_ntt
-    poly_sum1.to_coeffs_form(self.ntt_params)
+    poly_sum1.to_coeffs_form(ntt_params)
     self.assertEqual(poly_sum1, poly_sum0)
 
-  def test_rns_polynomial_negation(self):
-    zero_coeffs = [[0] * self.degree for _ in range(len(self.moduli))]
-    zero = rns.RnsPolynomial(self.degree, self.moduli, zero_coeffs)
+  def test_rns_polynomial_negation(self, degree, moduli):
+    zero_coeffs = [[0] * degree for _ in range(len(moduli))]
+    zero = rns.RnsPolynomial(degree, moduli, zero_coeffs)
 
-    poly0 = self._random_rns_polynomial(self.degree, self.moduli, is_ntt=False)
+    poly0 = self._random_rns_polynomial(degree, moduli, is_ntt=False)
     poly0_neg = -poly0
     assert not poly0_neg.is_ntt
     poly0_sum = poly0 + poly0_neg
     assert not poly0_sum.is_ntt
     self.assertEqual(poly0_sum, zero)
 
-    poly1 = self._random_rns_polynomial(self.degree, self.moduli, is_ntt=True)
+    poly1 = self._random_rns_polynomial(degree, moduli, is_ntt=True)
     poly1_neg = -poly1
     assert poly1_neg.is_ntt
     poly1_sum = poly1 + poly1_neg
     assert poly1_sum.is_ntt
-    poly1_sum.to_coeffs_form(self.ntt_params)
+    ntt_params = [rns.Ntt(degree, modulus) for modulus in moduli]
+    poly1_sum.to_coeffs_form(ntt_params)
     self.assertEqual(poly1_sum, zero)
 
-  def test_rns_polynomial_multiplication(self):
-    a = self._random_rns_polynomial(self.degree, self.moduli, is_ntt=True)
-    b = self._random_rns_polynomial(self.degree, self.moduli, is_ntt=True)
-    c = self._random_rns_polynomial(self.degree, self.moduli, is_ntt=True)
+  def test_rns_polynomial_multiplication(self, degree, moduli):
+    a = self._random_rns_polynomial(degree, moduli, is_ntt=True)
+    b = self._random_rns_polynomial(degree, moduli, is_ntt=True)
+    c = self._random_rns_polynomial(degree, moduli, is_ntt=True)
 
     # First we compute (a + b) * c
     ab = a + b
@@ -144,44 +143,45 @@ class RnsPolynomialTest(absltest.TestCase):
     assert acbc.is_ntt
     # Check (a + b) * c = a * c + b * c)
     self.assertEqual(abc, acbc)
-    
-    
-class RnsNegativeTest(parameterized_test.TestCase):
+
+
+class RnsNegativeTest(parameterized.TestCase):
   """Testing negative cases for RNS implementation."""
-  
+
   def setUp(self):
     super().setUp()
     self.degree = 8
     self.moduli = [12289]
-    
 
-  @parameterized_test.named_parameters(
+  @parameterized.named_parameters(
       {
-          'testcase_name': 'n_is_zero',
-          'invalid_n': 0,
+          "testcase_name": "n_is_zero",
+          "invalid_n": 0,
       },
       {
-          'testcase_name': 'n_is_odd',
-          'invalid_n': 7,
+          "testcase_name": "n_is_odd",
+          "invalid_n": 7,
       },
-  )    
+  )
   def test_create_ntt_with_invalid_n(self, invalid_n):
     with self.assertRaises(ValueError):
       rns.Ntt(invalid_n, self.moduli[0])
-      
+
   def test_create_ntt_with_invalid_q(self):
-    invalid_q = 2 * self.degree # set q = 2*N which isn't NTT-friendly
+    invalid_q = 2 * self.degree  # set q = 2*N which isn't NTT-friendly
     with self.assertRaises(ValueError):
       rns.Ntt(self.degree, invalid_q)
-      
+
   def test_add_polynomials_with_different_degrees(self):
     coeffs0 = [[0] * self.degree for _ in range(len(self.moduli))]
     coeffs1 = [[0] * (self.degree * 2) for _ in range(len(self.moduli))]
     poly0 = rns.RnsPolynomial(self.degree, self.moduli, coeffs0, is_ntt=False)
-    poly1 = rns.RnsPolynomial(self.degree * 2, self.moduli, coeffs1, is_ntt=False)
+    poly1 = rns.RnsPolynomial(
+        self.degree * 2, self.moduli, coeffs1, is_ntt=False
+    )
     with self.assertRaises(ValueError):
       poly0 + poly1
-      
+
   def test_add_polynomials_with_incompatible_coeffs(self):
     coeffs0 = [[0] * self.degree for _ in range(len(self.moduli))]
     coeffs1 = [[0] * self.degree for _ in range(len(self.moduli) + 1)]
@@ -189,7 +189,7 @@ class RnsNegativeTest(parameterized_test.TestCase):
     poly1 = rns.RnsPolynomial(self.degree, self.moduli, coeffs1, is_ntt=False)
     with self.assertRaises(ValueError):
       poly0 + poly1
-      
+
   def test_add_polynomials_with_different_moduli(self):
     moduli0 = self.moduli
     moduli1 = moduli0 + [65537]
@@ -199,22 +199,21 @@ class RnsNegativeTest(parameterized_test.TestCase):
     poly1 = rns.RnsPolynomial(self.degree, moduli1, coeffs1, is_ntt=False)
     with self.assertRaises(ValueError):
       poly0 + poly1
-      
+
   def test_add_polynomials_with_different_forms(self):
     coeffs = [[0] * self.degree for _ in range(len(self.moduli))]
     poly0 = rns.RnsPolynomial(self.degree, self.moduli, coeffs, is_ntt=False)
     poly1 = rns.RnsPolynomial(self.degree, self.moduli, coeffs, is_ntt=True)
     with self.assertRaises(ValueError):
       poly0 + poly1
-      
+
   def test_multiply_polynomials_in_coefficient_form(self):
     coeffs = [[0] * self.degree for _ in range(len(self.moduli))]
     poly0 = rns.RnsPolynomial(self.degree, self.moduli, coeffs, is_ntt=False)
     poly1 = rns.RnsPolynomial(self.degree, self.moduli, coeffs, is_ntt=False)
     with self.assertRaises(ValueError):
       poly0 * poly1
-        
-      
+
 
 if __name__ == "__main__":
   absltest.main()
