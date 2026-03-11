@@ -1,0 +1,23 @@
+module(name = "jaxite")
+
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "rules_license", version = "1.0.0")
+bazel_dep(name = "abseil-py", version = "2.1.0")
+bazel_dep(name = "rules_python", version = "1.5.1")
+
+# Hermetic python setup
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+
+python.toolchain(python_version = "3.11")
+
+pip.parse(
+    hub_name = "jaxite_deps",
+    python_version = "3.11",
+    requirements_lock = "//:requirements.txt",
+)
+
+use_repo(python, python_3_11 = "python_3_11")
+
+use_repo(pip, "jaxite_deps")
