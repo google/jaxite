@@ -30,13 +30,7 @@ def jax_add(value_a: jax.Array, value_b: jax.Array, modulus_list: jax.Array):
 def vmap_add(value_a: jax.Array, value_b: jax.Array, modulus_list: jax.Array):
   """This function processes all degree of the two input polynomials in SIMD using jax.vmap.
 
-  Assumes the input data type is a 3-dimensional jax Array as (num_elements, num_towers, degree)
-  where:
-    * num_elements: number of polynomials
-    * num_towers: number of RNS limbs
-    * degree: degree of the polynomials
-
-  This vmap_add can later be extended to batch ciphertexts.
+  Assuming the input data type is jax array.
 
   Args:
     value_a: the first operand of the addition.
