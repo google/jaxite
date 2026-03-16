@@ -145,7 +145,7 @@ tpu_test(
         "jaxite_ec/test_case/t8/zprize_msm_curve_377_scalars_dim_8_seed_0.csv",
     ],
     python_version = "PY3",
-    shard_count = 3,
+    shard_count = 6,
     srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
