@@ -209,13 +209,8 @@ class CkksEncoder:
         rns_utils.inverse_mod(q_hats[i], qs[i]) for i in range(num_moduli)
     ]
 
-    coeffs = [0] * self.degree
-    for i in range(num_moduli):
-      for j in range(self.degree):
-        coeffs[j] += coeffs_qs[i][j] * q_hat_invs[i] * q_hats[i]
-    for j in range(self.degree):
-      coeffs[j] = _rep(coeffs[j] % q, q)
-    return coeffs
+    coeffs = rns_utils.reconstruct_crt(coeffs_qs, qs)
+    return [_rep(c, q) for c in coeffs]
 
 
 @dataclasses.dataclass
