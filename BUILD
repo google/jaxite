@@ -527,3 +527,47 @@ cpu_gpu_tpu_test(
         "@jaxite_deps//numpy",
     ],
 )
+
+tpu_test(
+    name = "ntt_test",
+    size = "small",
+    timeout = "long",
+    srcs = ["jaxite/jaxite_ckks/ntt_test.py"],
+    shard_count = 3,
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//hypothesis",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+tpu_test(
+    name = "ntt_openfhe_test",
+    size = "small",
+    timeout = "moderate",
+    srcs = ["jaxite/jaxite_ckks/ntt_openfhe_test.py"],
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+py_test(
+    name = "math_test",
+    size = "small",
+    timeout = "moderate",
+    srcs = ["jaxite/jaxite_ckks/math_test.py"],
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//numpy",
+    ],
+)
