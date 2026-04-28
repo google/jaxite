@@ -38,6 +38,21 @@ py_library(
     ],
 )
 
+py_test(
+    name = "encode_test",
+    size = "small",
+    timeout = "long",
+    srcs = ["jaxite/jaxite_ckks/encode_test.py"],
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@jaxite_deps//hypothesis",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
 py_library(
     name = "jaxite",
     srcs = glob(
@@ -473,25 +488,6 @@ py_test(
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
         "@jaxite_deps//hypothesis",
-    ],
-)
-
-gpu_tpu_test(
-    name = "ckks_test",
-    size = "small",
-    timeout = "moderate",
-    srcs = ["jaxite/jaxite_ckks/ckks_test.py"],
-    deps = [
-        ":jaxite",
-        ":jaxite_ckks",
-        ":test_utils",
-        "@abseil-py//absl/testing:absltest",
-        "@abseil-py//absl/testing:parameterized",
-        "@jaxite_deps//hypothesis",
-        "@jaxite_deps//jax",
-        "@jaxite_deps//jaxlib",
-        "@jaxite_deps//numpy",
-        "@jaxite_deps//parameterized",
     ],
 )
 

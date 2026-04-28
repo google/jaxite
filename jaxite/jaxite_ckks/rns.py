@@ -6,7 +6,6 @@ Assume:
 """
 
 import dataclasses
-from typing import Any
 
 import jax.numpy as jnp
 from jaxite.jaxite_ckks import rns_utils

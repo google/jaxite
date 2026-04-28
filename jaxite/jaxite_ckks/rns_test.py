@@ -2,8 +2,13 @@
 
 import random
 
+import hypothesis
+from hypothesis import strategies as st
+import jax.numpy as jnp
+from jaxite.jaxite_ckks import ntt_cpu
 from jaxite.jaxite_ckks import rns
 from jaxite.jaxite_ckks import rns_utils
+import numpy as np
 import parameterized
 
 from absl.testing import absltest
@@ -54,8 +59,7 @@ class RnsPolynomialTest(absltest.TestCase):
     # evaluation form of the polynomial has coefficients c'_i, i = 0..n-1, for
     # c'_i = sum(psi^j * coeffs[j] * psi^(2i*j), j = 0..n-1)
     expected_ntt_coeffs = [
-        sum([psi ** j * coeffs[j] * psi ** (2 * i * j) % q for j in range(n)])
-        % q
+        sum([psi**j * coeffs[j] * psi ** (2 * i * j) % q for j in range(n)]) % q
         for i in range(n)
     ]
     rns_utils.bit_reversal_array(expected_ntt_coeffs)
@@ -144,44 +148,45 @@ class RnsPolynomialTest(absltest.TestCase):
     assert acbc.is_ntt
     # Check (a + b) * c = a * c + b * c)
     self.assertEqual(abc, acbc)
-    
-    
+
+
 class RnsNegativeTest(parameterized_test.TestCase):
   """Testing negative cases for RNS implementation."""
-  
+
   def setUp(self):
     super().setUp()
     self.degree = 8
     self.moduli = [12289]
-    
 
   @parameterized_test.named_parameters(
       {
-          'testcase_name': 'n_is_zero',
-          'invalid_n': 0,
+          "testcase_name": "n_is_zero",
+          "invalid_n": 0,
       },
       {
-          'testcase_name': 'n_is_odd',
-          'invalid_n': 7,
+          "testcase_name": "n_is_odd",
+          "invalid_n": 7,
       },
-  )    
+  )
   def test_create_ntt_with_invalid_n(self, invalid_n):
     with self.assertRaises(ValueError):
       rns.Ntt(invalid_n, self.moduli[0])
-      
+
   def test_create_ntt_with_invalid_q(self):
-    invalid_q = 2 * self.degree # set q = 2*N which isn't NTT-friendly
+    invalid_q = 2 * self.degree  # set q = 2*N which isn't NTT-friendly
     with self.assertRaises(ValueError):
       rns.Ntt(self.degree, invalid_q)
-      
+
   def test_add_polynomials_with_different_degrees(self):
     coeffs0 = [[0] * self.degree for _ in range(len(self.moduli))]
     coeffs1 = [[0] * (self.degree * 2) for _ in range(len(self.moduli))]
     poly0 = rns.RnsPolynomial(self.degree, self.moduli, coeffs0, is_ntt=False)
-    poly1 = rns.RnsPolynomial(self.degree * 2, self.moduli, coeffs1, is_ntt=False)
+    poly1 = rns.RnsPolynomial(
+        self.degree * 2, self.moduli, coeffs1, is_ntt=False
+    )
     with self.assertRaises(ValueError):
       poly0 + poly1
-      
+
   def test_add_polynomials_with_incompatible_coeffs(self):
     coeffs0 = [[0] * self.degree for _ in range(len(self.moduli))]
     coeffs1 = [[0] * self.degree for _ in range(len(self.moduli) + 1)]
@@ -189,7 +194,7 @@ class RnsNegativeTest(parameterized_test.TestCase):
     poly1 = rns.RnsPolynomial(self.degree, self.moduli, coeffs1, is_ntt=False)
     with self.assertRaises(ValueError):
       poly0 + poly1
-      
+
   def test_add_polynomials_with_different_moduli(self):
     moduli0 = self.moduli
     moduli1 = moduli0 + [65537]
@@ -199,22 +204,39 @@ class RnsNegativeTest(parameterized_test.TestCase):
     poly1 = rns.RnsPolynomial(self.degree, moduli1, coeffs1, is_ntt=False)
     with self.assertRaises(ValueError):
       poly0 + poly1
-      
+
   def test_add_polynomials_with_different_forms(self):
     coeffs = [[0] * self.degree for _ in range(len(self.moduli))]
     poly0 = rns.RnsPolynomial(self.degree, self.moduli, coeffs, is_ntt=False)
     poly1 = rns.RnsPolynomial(self.degree, self.moduli, coeffs, is_ntt=True)
     with self.assertRaises(ValueError):
       poly0 + poly1
-      
+
   def test_multiply_polynomials_in_coefficient_form(self):
     coeffs = [[0] * self.degree for _ in range(len(self.moduli))]
     poly0 = rns.RnsPolynomial(self.degree, self.moduli, coeffs, is_ntt=False)
     poly1 = rns.RnsPolynomial(self.degree, self.moduli, coeffs, is_ntt=False)
     with self.assertRaises(ValueError):
       poly0 * poly1
-        
-      
+
+  @hypothesis.settings(max_examples=5, deadline=None)
+  @hypothesis.given(
+      st.lists(
+          st.integers(min_value=0, max_value=335546368), min_size=8, max_size=8
+      )
+  )
+  def test_ntt_loop(self, coeffs):
+    degree = 8
+    moduli = [335552513, 335546369]
+    poly = jnp.array(coeffs, dtype=jnp.uint64).reshape(degree, 1)
+    # Broadcast coeffs to all moduli
+    poly = jnp.tile(poly, (1, len(moduli)))
+
+    ntt_p = jnp.array(ntt_cpu.ntt_negacyclic_poly(np.array(poly), moduli))
+    intt_p = jnp.array(ntt_cpu.intt_negacyclic_poly(np.array(ntt_p), moduli))
+
+    np.testing.assert_array_equal(poly, intt_p)
+
 
 if __name__ == "__main__":
   absltest.main()
