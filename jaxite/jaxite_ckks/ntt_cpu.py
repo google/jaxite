@@ -125,7 +125,7 @@ def ntt_negacyclic_poly(poly: np.ndarray, moduli: list[int]) -> np.ndarray:
     psi = ckks_math.root_of_unity(2 * degree, q)
     coeffs = poly[:, i]
     ntt_res = ntt_negacyclic_bit_reverse(coeffs, q, psi)
-    res[:, i] = ntt_res[perm].astype(np.uint64)
+    res[:, i] = (ntt_res[perm] % q).astype(np.uint64)
   return res
 
 
