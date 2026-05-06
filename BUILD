@@ -457,6 +457,8 @@ multichip_tpu_test(
         ":jaxite",
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
     ],
 )
 
