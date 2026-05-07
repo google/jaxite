@@ -7,10 +7,8 @@ The current implementation targets the [CGGI cryptosystem](https://eprint.iacr.o
 some optimizations, and is a supported backend for [Google's HEIR
 compiler toolchain](https://github.com/google/heir).
 
-Active development is upstreaming
-[CROSS](https://arxiv.org/abs/2501.07047),
-an end-to-end acceleration framework to accelerate Homomorphic Encryption (HE)
-using TPU and GPU hardware.
+Active development is upstreaming [CROSS](https://arxiv.org/abs/2501.07047),
+which implements [CKKS](https://ckks.org/) on TPU.
 
 ## Quick start
 
@@ -112,34 +110,6 @@ eight gate operations of the i8 adder above could be rewritten as
   outputs = jaxite_bool.pmap_lut3(inputs, sks, params)
   return outputs
 ```
-
-These circuits were generated with the jaxite support in [Google's Fully
-Homomorphic Encryption Transpiler
-project](https://github.com/google/fully-homomorphic-encryption), see
-[transpiler/jaxite](https://github.com/google/fully-homomorphic-encryption/tree/main/transpiler/jaxite)
-in that project for instructions.
-
-## Contributors
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for details on how to contribute. The following are contributors to Jaxite project (sorted by last name):
-
--   [Asra Ali](https://github.com/asraa)
--   [Eric Astor](https://github.com/ericastor)
--   [Bryant Gipson](https://www.linkedin.com/in/bryant-gipson-33478419)
--   [Shruthi Gorantala](https://github.com/code-perspective)
--   [Miguel Guevara](https://www.linkedin.com/in/miguel-guevara-8a5a332a)
--   [Jeremy Kun](https://github.com/j2kun)
--   [William Lam](https://www.linkedin.com/in/william-m-lam)
--   [Rafael Misoczki](https://www.linkedin.com/in/rafael-misoczki-phd-24b33013)
--   [Rob Springer](https://github.com/RobSpringer)
--   [Jonathan Takeshita](https://sites.nd.edu/jonathan-takeshita/)
--   [Jianming Tong](https://jianmingtong.github.io/)
--   [Cameron Tew](https://github.com/cam2337)
--   [Cathie Yun](https://github.com/cathieyun)
-
-## License
-
-Apache 2.0; see [`LICENSE`](LICENSE) for details.
 
 ## Disclaimer
 
