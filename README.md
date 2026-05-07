@@ -3,9 +3,14 @@
 Jaxite is a fully homomorphic encryption backend targeting TPUs and GPUs,
 written in [JAX](https://github.com/google/jax).
 
-It implements the [CGGI cryptosystem](https://eprint.iacr.org/2018/421) with
-some optimizations, and is a supported backend for [Google's FHE
-compiler](https://github.com/google/fully-homomorphic-encryption).
+The current implementation targets the [CGGI cryptosystem](https://eprint.iacr.org/2018/421) with
+some optimizations, and is a supported backend for [Google's HEIR
+compiler toolchain](https://github.com/google/heir).
+
+Active development is upstreaming
+[CROSS](https://arxiv.org/abs/2501.07047),
+an end-to-end acceleration framework to accelerate Homomorphic Encryption (HE)
+using TPU and GPU hardware.
 
 ## Quick start
 
