@@ -2,7 +2,8 @@
 
 load("@jaxite//bazel:test_oss.bzl", "cpu_gpu_tpu_test", "gpu_tpu_test", "multichip_tpu_test", "tpu_test")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_python//python:defs.bzl", "py_library", "py_test")
+load("@rules_python//python:defs.bzl", "py_library")
+load("//devtools/python/blaze:strict.bzl", "py_strict_test")
 
 package(
     default_applicable_licenses = [":license"],
@@ -38,7 +39,7 @@ py_library(
     ],
 )
 
-py_test(
+py_strict_test(
     name = "encode_test",
     size = "small",
     timeout = "long",
@@ -430,7 +431,7 @@ cpu_gpu_tpu_test(
     ],
 )
 
-py_test(
+py_strict_test(
     name = "lut_test",
     srcs = ["jaxite/jaxite_bool/lut_test.py"],
     deps = [
@@ -475,7 +476,7 @@ multichip_tpu_test(
     ],
 )
 
-py_test(
+py_strict_test(
     name = "rns_test",
     size = "small",
     timeout = "moderate",
@@ -493,7 +494,7 @@ py_test(
     ],
 )
 
-py_test(
+py_strict_test(
     name = "rns_utils_test",
     size = "small",
     timeout = "moderate",
@@ -570,7 +571,7 @@ tpu_test(
     ],
 )
 
-py_test(
+py_strict_test(
     name = "math_test",
     size = "small",
     timeout = "moderate",
