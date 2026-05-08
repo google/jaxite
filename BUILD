@@ -53,6 +53,21 @@ py_test(
     ],
 )
 
+py_test(
+    name = "encrypt_test",
+    size = "small",
+    timeout = "long",
+    srcs = ["jaxite/jaxite_ckks/encrypt_test.py"],
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@jaxite_deps//hypothesis",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
 py_library(
     name = "jaxite",
     srcs = glob(
