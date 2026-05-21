@@ -36,12 +36,22 @@ class EncryptTest(absltest.TestCase):
     random_source = random.TestRandomSource(seed)
 
     pk, sk = key_gen.keygen(degree, moduli, random_source=random_source)
-    pt = encode.encode(slots, degree, moduli, scale)
 
-    ct = encrypt.encrypt(pt, pk, random_source=random_source)
-    decrypted_pt = encrypt.decrypt(ct, sk)
+    encoder = encode.Encode()
+    encoder.precompute_constants(degree, moduli, scale)
+    pt = encoder.encode(slots)
 
-    decoded = encode.decode(decrypted_pt, scale, len(slots))
+    encryptor = encrypt.Encrypt()
+    encryptor.precompute_constants(pk)
+    ct = encryptor.encrypt(pt, random_source=random_source)
+
+    decryptor = encrypt.Decrypt()
+    decryptor.precompute_constants(sk)
+    decrypted_pt = decryptor.decrypt(ct)
+
+    decoder = encode.Decode()
+    decoder.precompute_constants(scale, len(slots))
+    decoded = decoder.decode(decrypted_pt)
 
     for s, d in zip(slots, decoded):
       self.assertAlmostEqual(s.real, d.real, delta=0.2)
@@ -65,8 +75,14 @@ class EncryptTest(absltest.TestCase):
 
     random_source = random.ZeroNoiseRandomSource()
     pk, sk = key_gen.keygen(degree, moduli, random_source=random_source)
-    ct = encrypt.encrypt(pt, pk, random_source=random_source)
-    decrypted_pt = encrypt.decrypt(ct, sk)
+
+    encryptor = encrypt.Encrypt()
+    encryptor.precompute_constants(pk)
+    ct = encryptor.encrypt(pt, random_source=random_source)
+
+    decryptor = encrypt.Decrypt()
+    decryptor.precompute_constants(sk)
+    decrypted_pt = decryptor.decrypt(ct)
 
     np.testing.assert_array_equal(decrypted_pt.data, pt.data)
 
@@ -77,9 +93,15 @@ class EncryptTest(absltest.TestCase):
     scale = 2**10
     slots = [1.0, 2.0, 3.0, 4.0]
 
-    pt = encode.encode(slots, degree, moduli, scale)
+    encoder = encode.Encode()
+    encoder.precompute_constants(degree, moduli, scale)
+    pt = encoder.encode(slots)
+
     pk, sk = key_gen.keygen(degree, moduli)
-    ct = encrypt.encrypt(pt, pk)
+
+    encryptor = encrypt.Encrypt()
+    encryptor.precompute_constants(pk)
+    ct = encryptor.encrypt(pt)
 
     @jax.jit
     def get_data(c):

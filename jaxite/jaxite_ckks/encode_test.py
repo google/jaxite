@@ -22,8 +22,13 @@ class EncodeTest(absltest.TestCase):
     degree = 8
     moduli = [335552513, 335546369]  # Two 25-bit primes
 
-    pt = encode.encode(slots, degree, moduli, scale)
-    decoded = encode.decode(pt, scale, len(slots))
+    encoder = encode.Encode()
+    encoder.precompute_constants(degree, moduli, scale)
+    pt = encoder.encode(slots)
+
+    decoder = encode.Decode()
+    decoder.precompute_constants(scale, len(slots))
+    decoded = decoder.decode(pt)
 
     for s, d in zip(slots, decoded):
       self.assertAlmostEqual(s.real, d.real, delta=1.0)
@@ -52,7 +57,9 @@ class CrossDiffTest(absltest.TestCase):
         complex(5, 0),
     ]
 
-    pt = encode.encode(slots, degree, moduli, scale)
+    encoder = encode.Encode()
+    encoder.precompute_constants(degree, moduli, scale)
+    pt = encoder.encode(slots)
 
     # Expected values generated from CROSS
     expected_data = np.array(
@@ -78,7 +85,9 @@ class CrossDiffTest(absltest.TestCase):
     )
 
     np.testing.assert_array_equal(np.array(pt.data), expected_data)
-    decoded = encode.decode(pt, scale, num_slots=num_slots)
+    decoder = encode.Decode()
+    decoder.precompute_constants(scale, num_slots)
+    decoded = decoder.decode(pt)
     np.testing.assert_allclose(decoded, slots, atol=1e-03)
 
 

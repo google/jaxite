@@ -1,5 +1,6 @@
 """Utilities for encoding and decoding plaintexts."""
 
+import abc
 import math
 
 import jax.numpy as jnp
@@ -100,62 +101,107 @@ def fft_special(vals: np.ndarray, cycl_order: int) -> None:
     length <<= 1
 
 
-def encode(
-    slots: list[complex], degree: int, moduli: list[int], scale: float
-) -> Plaintext:
-  """Encode a cleartext vector into an RNS-CKKS plaintext.
-
-  Args:
-    slots: the length (at most) `degree / 2` list of input values. Zero-padded
-      to size `degree / 2` if there are fewer than `degree / 2` values.
-    degree: the degree N of the polynomial ring modulus of the plaintext space.
-      Must be a power of two.
-    moduli: the list of modulus factors q_i, for which Q = product_i(q_i)
-      provides the coefficient modulus of the polynomial ring. The output
-      representation is an RNS polynomial using these moduli as limbs.
-    scale: the scaling factor for the plaintext.
-
-  Returns:
-    The encoded plaintext.
-  """
-  nh = degree // 2
-  y = np.array(slots, dtype=complex)
-  if len(y) < nh:
-    y = np.pad(y, (0, nh - len(y)))
-  fft_special_inv(y, degree * 2)
-  coeffs = np.concatenate([y.real, y.imag])
-  scaled_coeffs = np.round(coeffs * scale)
-  moduli_arr = np.array(moduli, dtype=np.uint64)
-  poly = (scaled_coeffs % moduli_arr[:, None]).T.astype(np.uint64)
-  poly_ntt = ntt_cpu.ntt_negacyclic_poly(poly, moduli)
-  return Plaintext(jnp.array(poly_ntt), jnp.array(moduli, dtype=jnp.uint64))
+ABC = abc.ABC
+abstractmethod = abc.abstractmethod
 
 
-def decode(plaintext: Plaintext, scale: float, num_slots: int) -> list[complex]:
-  """Decode an RNS-CKKS plaintext into a cleartext vector.
+class EncodeBase(ABC):
+  """Abstract base class for encoding kernels."""
 
-  Args:
-    plaintext: the input plaintext polynomial to decode.
-    scale: the scaling factor for the plaintext.
-    num_slots: the number of slots to restrict the output to. Though the
-      polynomial degree N is tracked by the `plaintext` argument, and hence N/2
-      is the actual number of slots, this argument truncates the final result to
-      allow the user to specify a cleartext with < N/2 slots.
+  @abstractmethod
+  def precompute_constants(self, degree: int, moduli: list[int], scale: float):
+    """Precomputes constants for encoding."""
 
-  Returns:
-    The encoded plaintext.
-  """
-  moduli = plaintext.moduli.tolist()
-  degree = plaintext.data.shape[0]
-  poly = ntt_cpu.intt_negacyclic_poly(np.array(plaintext.data), moduli)
-  combined = np.array(rns_utils.reconstruct_crt(poly.T.tolist(), moduli))
-  modulus = math.prod(moduli)
-  half_modulus = modulus // 2
-  modded = np.where(
-      combined > half_modulus, combined - modulus, combined
-  ).astype(np.float64)
-  coeffs = modded / scale
-  nh = degree // 2
-  y = coeffs[:nh] + 1j * coeffs[nh:]
-  fft_special(y, degree * 2)
-  return y[:num_slots].tolist()
+  @abstractmethod
+  def encode(self, slots: list[complex]) -> Plaintext:
+    """Encode a cleartext vector into an RNS-CKKS plaintext."""
+
+
+class DecodeBase(ABC):
+  """Abstract base class for decoding kernels."""
+
+  @abstractmethod
+  def precompute_constants(self, scale: float, num_slots: int):
+    """Precomputes constants for decoding."""
+
+  @abstractmethod
+  def decode(self, plaintext: Plaintext) -> list[complex]:
+    """Decode an RNS-CKKS plaintext into a cleartext vector."""
+
+
+class Encode(EncodeBase):
+  """Kernel for CKKS encoding."""
+
+  def __init__(self):
+    self.degree = None
+    self.moduli = None
+    self.scale = None
+
+  def precompute_constants(self, degree: int, moduli: list[int], scale: float):
+    self.degree = degree
+    self.moduli = moduli
+    self.scale = scale
+
+  def encode(self, slots: list[complex]) -> Plaintext:
+    """Encode a cleartext list of slots into a plaintext.
+
+    If the number of slots is less than the configured self.degree / 2,
+    then the remaining slots are filled with zero.
+
+    Args:
+        slots: a list of complex values to encode into plaintext slots
+
+    Returns: a Plaintext encoding the given slots.
+    """
+    if self.degree is None or self.moduli is None or self.scale is None:
+      raise ValueError(
+          "degree, moduli, and scale must be set via precompute_constants"
+          " first."
+      )
+
+    nh = self.degree // 2
+    y = np.array(slots, dtype=complex)
+    if len(y) < nh:
+      y = np.pad(y, (0, nh - len(y)))
+    fft_special_inv(y, self.degree * 2)
+    coeffs = np.concatenate([y.real, y.imag])
+    scaled_coeffs = np.round(coeffs * self.scale)
+    moduli_arr = np.array(self.moduli, dtype=np.uint64)
+    poly = (scaled_coeffs % moduli_arr[:, None]).T.astype(np.uint64)
+    poly_ntt = ntt_cpu.ntt_negacyclic_poly(poly, self.moduli)
+    return Plaintext(
+        jnp.array(poly_ntt), jnp.array(self.moduli, dtype=jnp.uint64)
+    )
+
+
+class Decode(DecodeBase):
+  """Kernel for CKKS decoding."""
+
+  def __init__(self):
+    self.scale = None
+    self.num_slots = None
+
+  def precompute_constants(self, scale: float, num_slots: int):
+    self.scale = scale
+    self.num_slots = num_slots
+
+  def decode(self, plaintext: Plaintext) -> list[complex]:
+    if self.scale is None or self.num_slots is None:
+      raise ValueError(
+          "scale and num_slots must be set via precompute_constants first."
+      )
+
+    moduli = plaintext.moduli.tolist()
+    degree = plaintext.data.shape[0]
+    poly = ntt_cpu.intt_negacyclic_poly(np.array(plaintext.data), moduli)
+    combined = np.array(rns_utils.reconstruct_crt(poly.T.tolist(), moduli))
+    modulus = math.prod(moduli)
+    half_modulus = modulus // 2
+    modded = np.where(
+        combined > half_modulus, combined - modulus, combined
+    ).astype(np.float64)
+    coeffs = modded / self.scale
+    nh = degree // 2
+    y = coeffs[:nh] + 1j * coeffs[nh:]
+    fft_special(y, degree * 2)
+    return y[: self.num_slots].tolist()
