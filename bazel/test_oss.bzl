@@ -1,6 +1,6 @@
 """Testing util helpers"""
 
-load("@rules_python//python:defs.bzl", "py_test")
+load("@rules_python//python:defs.bzl", "py_strict_test")
 
 # This file is a shim to have the same Google-internal and external API
 # for running jaxite on TPU and GPU tests. The internal API is not
@@ -25,7 +25,7 @@ def tpu_test(name, **kwargs):
     if not kwargs.get("main"):
         main = kwargs.get("srcs", ["%s.py" % name])[0]
         kwargs.setdefault("main", main)
-    py_test(
+    py_strict_test(
         name = name,
         srcs = kwargs["srcs"],
         size = kwargs["size"],
@@ -51,7 +51,7 @@ def cpu_tpu_test(name, **kwargs):
       name: the name of the CPU test.
       **kwargs: other args passed along to generated rules.
     """
-    py_test(name = name, **kwargs)
+    py_strict_test(name = name, **kwargs)
 
 def gpu_tpu_test(name, **kwargs):
     """A shim that only generates CPU tests.
@@ -60,7 +60,7 @@ def gpu_tpu_test(name, **kwargs):
       name: the name of the CPU test.
       **kwargs: other args passed along to generated rules.
     """
-    py_test(name = name, **kwargs)
+    py_strict_test(name = name, **kwargs)
 
 def cpu_gpu_tpu_test(name, **kwargs):
     """A shim that only generates CPU tests.
@@ -69,7 +69,7 @@ def cpu_gpu_tpu_test(name, **kwargs):
       name: the name of the CPU test.
       **kwargs: other args passed along to generated rules.
     """
-    py_test(name = name, **kwargs)
+    py_strict_test(name = name, **kwargs)
 
 def cpu_gpu_tpu_py_benchmark(name, **kwargs):
     """A shim that only generates CPU tests.
@@ -79,4 +79,4 @@ def cpu_gpu_tpu_py_benchmark(name, **kwargs):
         `_<platform>_benchmark`, e.g., `_cpu_benchmark`
       **kwargs: other args passed along to generated rules.
     """
-    py_test(name = name + "_cpu_benchmark", **kwargs)
+    py_strict_test(name = name + "_cpu_benchmark", **kwargs)
