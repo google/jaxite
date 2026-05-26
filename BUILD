@@ -53,6 +53,19 @@ py_test(
     ],
 )
 
+tpu_test(
+    name = "cross_equivalence_test",
+    size = "small",
+    srcs = ["jaxite/jaxite_ckks/cross_equivalence_test.py"],
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
 py_test(
     name = "encrypt_test",
     size = "small",
