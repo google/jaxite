@@ -32,7 +32,6 @@ import functools
 import jax
 import jax.numpy as jnp
 from jaxite.jaxite_ec import util
-import numpy as np
 
 
 total_modulus = util.total_modulus
@@ -320,6 +319,11 @@ def cond_sub_mod_u16(
       compare_u16, chunk_num_u16=chunk_num_u16
   )
   sub_2u16_local = functools.partial(sub_2u16, chunk_num_u16=chunk_num_u16)
+  # if value_a.shape[0] > 1:
+  #   # Input is batch (Vector, Constant)
+  #   compare_u16_local = jax.vmap(compare_u16_local, in_axes=(0, None))
+  #   sub_2u16_local = jax.vmap(sub_2u16_local, in_axes=(0, None))
+
   modulus_377_int_array = jnp.asarray(modulus_377_int_chunk, jnp.uint16)
 
   cond = compare_u16_local(value_a, modulus_377_int_array)
@@ -456,7 +460,7 @@ def mul_shift_2u16x2x1(
     mask: The mask to apply to the value.
     barrett_shift_u8: The number of bits to shift the value.
     chunk_num_u16: The number of chunks in the u16 value.
-    chunk_num_u32: The number of chunks in the u32 value.
+    chunk_num_u32: The number of chunks in the u16 value.
     chunk_shift_bits: The number of bits to shift the value.
     vmap_axes: (0, None) means axis 0 is the mapped access, and The rest is not.
 
@@ -654,77 +658,49 @@ def mod_mul_lazy_2u16(
   return value_c_u16
 
 
-def split_view_32_to_16(a: jnp.ndarray):
-  # Interpret each 32-bit element as two 16-bit numbers
-  # and reshape to add an extra dimension of size 2.
-  v = a.view(jnp.uint16).reshape(a.shape + (2,))
-  # Assuming little-endian storage, the lower 16 bits are at index 0
-  # and the upper 16 bits are at index 1.
-  lower = v[..., 0]
-  upper = v[..., 1]
-  return upper, lower
-
-
-def split_view_32_to_16_8(a: jnp.ndarray):
-  # First, reshape the 32-bit integers as groups of 4 bytes.
-  v8 = a.view(jnp.uint8).reshape(a.shape + (4,))
-  # Also, reshape as 16-bit integers (2 per 32-bit element)
-  v16 = a.view(jnp.uint16).reshape(a.shape + (2,))
-  # For each 32-bit integer:
-  # v16[..., 0] gives the lower 16 bits.
-  # v8[..., 2] gives the third byte (i.e. the lower 8 bits of the upper 16 bits)
-  lower = v16[..., 0]
-  upper8 = v8[..., 2]
-  return upper8, lower
-
-
-# Reduce via RNS modulus
-@jax.named_call
 @functools.partial(
     jax.jit,
-    static_argnames="moduli_t",
+    static_argnames=("moduli", "s", "m"),
 )
-def moduli_rns_red_internal_2u16(vals, moduli_t=util.RNS_MODULI_T):
-  """Reduce via RNS modulus.
+def barret_reduction_u32(
+    z, moduli=util.MODULI, s=util.S_BARRETT, m=util.M_BARRETT
+):
+  """Vectorized implementation of the Barrett reduction.
+
+  Works for modulus `q` less than 31 bits.
+
+  This implementation sets the internal shift width `w` to `min(s, 32)` so it
+  works with small modulus `moduli < 2^16`.
 
   Args:
-    vals: The values to reduce.
-    moduli_t: The moduli for the target.
+    z: The input value.
+    moduli: The RNS moduli.
+    s: The bit width of moduli.
+    m: The precomputed value for Barrett reduction.
 
   Returns:
-    The reduced values.
+    The result of the Barrett reduction.
   """
-  # See jaxite_ec/advanced_algorithm/rns_red.py for description
-  moduli_t = jnp.array(moduli_t, dtype=jnp.uint8)
-  u1, l1 = split_view_32_to_16(vals)
-  i1 = jnp.add(
-      l1.astype(jnp.uint32),
-      jnp.multiply(u1.astype(jnp.uint32), moduli_t),
-  )
-  u2, l2 = split_view_32_to_16_8(i1)
-  i2 = jnp.add(
-      l2.astype(jnp.uint32),
-      jnp.multiply(u2.astype(jnp.uint16), moduli_t).astype(
-          jnp.uint32
-      ),
-  )
-  u3, l3 = split_view_32_to_16_8(i2)
-  out = jnp.add(l3, jnp.multiply(u3, moduli_t).astype(jnp.uint16))
-  return out
+  m = jnp.array(m, dtype=jnp.uint64)
+  moduli = jnp.array(moduli, dtype=jnp.uint32)
+  s = jnp.array(s, dtype=jnp.uint16)
+  t = ((z.astype(jnp.uint64) * m) >> s).astype(jnp.uint32)
+  z = z - t * moduli
+  pred = z >= moduli
+  return jnp.where(pred, z - moduli, z).astype(jnp.uint16)
 
 
 # Reduce via prime modulus
 @jax.named_call
 @functools.partial(
     jax.jit,
-    static_argnames=("rns_mat", "moduli_t", "num_moduli", "precision"),
+    static_argnames=("rns_mat", "num_moduli", "precision"),
 )
 def mod_red_rns_2u16(
     c_rns_reduced,
     rns_mat=util.RNS_MAT,
-    moduli_t=util.RNS_MODULI_T,
     num_moduli=util.NUM_MODULI,
-    precision=util.RNS_PRECISION,
+    precision=util.moduli_precision,
 ):
   """Reduce via RNS modulus.
 
@@ -761,35 +737,32 @@ def mod_red_rns_2u16(
       k, cor_mat, preferred_element_type=jnp.uint32
   )
 
-  return moduli_rns_red_internal_2u16(c_corrected, moduli_t)
+  return barret_reduction_u32(c_corrected)
 
 
 # Multiply, without reducing
 @jax.named_call
 @functools.partial(
     jax.jit,
-    static_argnames="moduli_t",
 )
 def mul_unreduced_rns_2u16(
     value_a,
     value_b,
-    moduli_t=util.RNS_MODULI_T,
 ):
   ab = jnp.multiply(value_a.astype(jnp.uint32), value_b.astype(jnp.uint32))
-  return moduli_rns_red_internal_2u16(ab, moduli_t)
+  return barret_reduction_u32(ab)
 
 
 # Multiply and reduce
 @jax.named_call
 @functools.partial(
     jax.jit,
-    static_argnames=("rns_mat", "moduli_t"),
+    static_argnames="rns_mat",
 )
 def mod_mul_rns_2u16(
     value_a,
     value_b,
     rns_mat=util.RNS_MAT,
-    moduli_t=util.RNS_MODULI_T,
 ):
   """Multiply two u16 values with RNS reduction.
 
@@ -802,19 +775,82 @@ def mod_mul_rns_2u16(
   Returns:
     The product of the two u16 values.
   """
-  ab = mul_unreduced_rns_2u16(value_a, value_b, moduli_t)
-  return mod_red_rns_2u16(ab, rns_mat, moduli_t)
+  ab = mul_unreduced_rns_2u16(value_a, value_b)
+  return mod_red_rns_2u16(ab, rns_mat)
 
 
 @jax.named_call
 @functools.partial(
     jax.jit,
-    static_argnames="moduli_t",
+    static_argnames=("rns_mat", "num_moduli", "precision", "moduli", "s", "m"),
+)
+def mod_mul_rns_unified_2u16(
+    value_a,
+    value_b,
+    rns_mat=util.RNS_MAT,
+    num_moduli=util.NUM_MODULI,
+    precision=util.moduli_precision,
+    moduli=util.MODULI,
+    s=util.S_BARRETT,
+    m=util.M_BARRETT
+):
+  """Multiply two u16 values with RNS reduction.
+
+  Args:
+    value_a: The first u16 value.
+    value_b: The second u16 value.
+    rns_mat: The RNS precompute.
+    moduli_t: The moduli for the target.
+
+  Returns:
+    The product of the two u16 values.
+  """
+  m = jnp.array(m, dtype=jnp.uint64)
+  moduli = jnp.array(moduli, dtype=jnp.uint32)
+  s = jnp.array(s, dtype=jnp.uint16)
+
+  rns_stacked_mat = jnp.array(rns_mat[0], jnp.uint8)
+  cor_mat = jnp.array(rns_mat[1], jnp.uint16)
+
+  ab = jnp.multiply(value_a.astype(jnp.uint32), value_b.astype(jnp.uint32))
+  t = ((ab.astype(jnp.uint64) * m) >> s).astype(jnp.uint32)
+  ab = (ab - t * moduli)
+  pred = ab >= moduli
+  c_rns_reduced = jnp.where(pred, ab - moduli, ab).astype(jnp.uint16)
+
+  c_target = jnp.matmul(
+      c_rns_reduced.view(jnp.uint8),
+      rns_stacked_mat,
+      preferred_element_type=jnp.uint32,
+  )
+
+  mul_res_glb_red_u32 = c_target.reshape(*c_target.shape[:-1], -1, 2)
+  mul_res_glb_red_u32 = mul_res_glb_red_u32[..., 0] + (
+      mul_res_glb_red_u32[..., 1] << 8
+  )
+  rns_reduce_u32, qe_u32 = jnp.split(
+      mul_res_glb_red_u32, [num_moduli], axis=1
+  )
+
+  # obtain the high 32 bits from the quotient estimation results qe_u32
+  k = (qe_u32 >> precision).astype(jnp.uint16)
+  c_corrected = rns_reduce_u32 + jnp.matmul(
+      k, cor_mat, preferred_element_type=jnp.uint32
+  )
+
+  t = ((c_corrected.astype(jnp.uint64) * m) >> s).astype(jnp.uint32)
+  c_corrected = (c_corrected - t * moduli)
+  pred2 = c_corrected >= moduli
+  return jnp.where(pred2, c_corrected - moduli, c_corrected).astype(jnp.uint16)
+
+
+@jax.named_call
+@functools.partial(
+    jax.jit,
 )
 def add_rns_2u16(
     value_a: jax.Array,
     value_b: jax.Array,
-    moduli_t=util.RNS_MODULI_T,
 ):
   """Add two u16 values with RNS reduction.
 
@@ -826,19 +862,17 @@ def add_rns_2u16(
   Returns:
     The sum of the two u16 values.
   """
-  return add_sub_rns_var(value_a, value_b, moduli_t=moduli_t)
+  return add_sub_rns_var(value_a, value_b)
 
 
 @jax.named_call
 @functools.partial(
     jax.jit,
-    static_argnames="moduli_t",
 )
 def add_rns_3u16(
     value_a: jax.Array,
     value_b: jax.Array,
     value_c: jax.Array,
-    moduli_t=util.RNS_MODULI_T,
 ):
   """Add three u16 values with RNS reduction.
 
@@ -846,12 +880,11 @@ def add_rns_3u16(
     value_a: The first u16 value.
     value_b: The second u16 value.
     value_c: The third u16 value.
-    moduli_t: The moduli for the target.
 
   Returns:
     The sum of the three u16 values.
   """
-  return add_sub_rns_var(value_a, value_b, value_c, moduli_t=moduli_t)
+  return add_sub_rns_var(value_a, value_b, value_c)
 
 
 @jax.named_call
@@ -862,6 +895,7 @@ def add_rns_3u16(
 def negate_rns_for_var_add(
     value_a: jax.Array,
     moduli_sub=util.MODULI_SUB,
+    moduli=util.MODULI,
 ):
   """Negate a value for use in subtraction.
 
@@ -872,17 +906,19 @@ def negate_rns_for_var_add(
     value_a: RNS array to negate
     moduli_sub: Precomputed constants for performing negation, that depend on
       the target modulus
+    moduli: RNS moduli
 
   Returns:
     An intermediate representing the negation of values_a in the target modulus
     in RNS form.
 
-  Note: original data precision is 16 bit, using uint32 to avoid overflow
+  Note: original data precision is 32 bit, using uint64 to avoid overflow
   """
-  moduli_sub = jnp.array(moduli_sub, dtype=jnp.uint32)
+  moduli_sub = jnp.array(moduli_sub, dtype=jnp.uint16)
+  moduli = jnp.array(moduli, dtype=jnp.uint32)
 
   return jnp.add(
-      jnp.negative(value_a.astype(jnp.uint16)).astype(jnp.uint32),
+      jnp.subtract(moduli, value_a.astype(jnp.uint32)),
       moduli_sub,
   )
 
@@ -892,9 +928,10 @@ def negate_rns_for_var_add(
     jax.jit,
     static_argnames="moduli_sub",
 )
-def negate_rns_for_var_add_zero_check(
+def negate_rns(
     value_a: jax.Array,
     moduli_sub=util.MODULI_SUB,
+    moduli=util.MODULI,
 ):
   """Negate a value for use in subtraction.
 
@@ -905,35 +942,29 @@ def negate_rns_for_var_add_zero_check(
     value_a: RNS array to negate
     moduli_sub: Precomputed constants for performing negation, that depend on
       the target modulus
+    moduli: RNS moduli
 
   Returns:
     An intermediate representing the negation of values_a in the target modulus
     in RNS form.
 
-  Note: original data precision is 16 bit, using uint32 to avoid overflow
+  Note: original data precision is 32 bit, using uint64 to avoid overflow
   """
+  moduli_sub = jnp.array(moduli_sub, dtype=jnp.uint16)
+  moduli = jnp.array(moduli, dtype=jnp.uint32)
 
-  moduli_sub = jnp.array(moduli_sub, dtype=jnp.uint32)
-  a = value_a.astype(jnp.uint16)
-
-  # Compute two's complement negation: for nonzero a, jnp.negative(a) computes
-  # (2^16 - a).
-  neg = jnp.negative(a).astype(jnp.uint32)
-
-  # Build a branchless mask: 0 if a==0, 1 otherwise.
-  mask = (a != 0).astype(jnp.uint32)
-
-  # For nonzero a: (2^16 - a) + moduli_sub; for zero: m + 0 multiplied by 0
-  # gives 0.
-  return (neg + moduli_sub) * mask
+  negate_a = jnp.add(
+      jnp.subtract(moduli, value_a.astype(jnp.uint32)),
+      moduli_sub,
+  )
+  return barret_reduction_u32(negate_a)
 
 
 @jax.named_call
 @functools.partial(
     jax.jit,
-    static_argnames="moduli_t",
 )
-def add_sub_rns_var(*values, moduli_t=util.RNS_MODULI_T):
+def add_sub_rns_var(*values):
   """Evaluate an static set of additions and subtractions.
 
   Subtractions are implemented by calling negate_rns_for_var_add on inputs to
@@ -943,7 +974,6 @@ def add_sub_rns_var(*values, moduli_t=util.RNS_MODULI_T):
 
   Args:
     *values: A list of RNS values to accumulate
-    moduli_t: The moduli for the RNS form.
 
   Returns:
     The RNS form of the evaluation of the expession.
@@ -954,23 +984,6 @@ def add_sub_rns_var(*values, moduli_t=util.RNS_MODULI_T):
     if acc != None:
       acc = jnp.add(v.astype(jnp.uint32), acc)
     else:
-      acc = v.astype(jnp.uint32)
+      acc = v
   assert len(values) < 256
-  moduli_t = jnp.array(moduli_t, dtype=jnp.uint8)
-  # u1 < 254
-  u1, l1 = split_view_32_to_16_8(acc)
-  # i1 < 2**16 - 1 + 255t < 2**17 - t for 8 bit t
-  i1 = jnp.add(
-      jnp.multiply(u1.astype(np.uint16), moduli_t).astype(jnp.uint32),
-      l1.astype(jnp.uint32),
-  )
-  # u2 = 0 or 1, but if u2 = 1 then l < 2**16 - t, so 2**16 - t + t < 2**16
-  u2, l2 = split_view_32_to_16_8(i1)
-  return jnp.add(jnp.multiply(u2, moduli_t).astype(jnp.uint16), l2)
-
-
-@functools.partial(jax.jit, static_argnames=("c", "num_moduli"))
-def rns_constant(c, num_moduli=util.NUM_MODULI):
-  assert c >= 0
-  assert c < 2**14  # small constants only please
-  return jnp.repeat(jnp.array([c], dtype=jnp.uint16), num_moduli)
+  return barret_reduction_u32(acc)

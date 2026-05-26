@@ -723,17 +723,6 @@ def padd(partial_sum, single_point):
   return jec.padd_lazy_twisted_pack(partial_sum, single_point)
 
 
-def padd_with_pdul_check(partial_sum, single_point):
-  # coordinate_dim, batch_dim, precision_dim = partial_sum.shape
-  _, batch_dim, _ = partial_sum.shape
-  new_partial_sum = jec.padd_lazy_twisted_pack(partial_sum, single_point)
-  double_partial_sum = jec.pdul_lazy_twisted_pack(partial_sum)
-  cond_equal = jnp.all(partial_sum == single_point, axis=(0, 2)).reshape(
-      1, batch_dim, 1
-  )
-  return jnp.where(cond_equal, double_partial_sum, new_partial_sum)
-
-
 def bucket_accumulation_index_scan_parallel_algorithm_twisted(
     all_buckets: jnp.ndarray,
     all_points: jnp.ndarray,
@@ -788,7 +777,7 @@ def bucket_reduction_scan_algorithm_twisted(
   def scan_body(temp_and_window_sum_pack, buckets):
     temp_sum, window_sum = temp_and_window_sum_pack
     temp_sum = padd(temp_sum, buckets)
-    window_sum = padd_with_pdul_check(window_sum, temp_sum)
+    window_sum = padd(window_sum, temp_sum)
     return (temp_sum, window_sum), None
 
   (_, window_sum), _ = jax.lax.scan(
@@ -828,10 +817,10 @@ def window_merge_scan_algorithm_twisted(
 ):
   """Scan version WM."""
   coordinate_dim, window_dim, precision_dim = window_sum.shape
-  window_sum = window_sum.transpose(1, 0, 2)
-  result = window_sum[window_dim - 1, :, :].reshape(
-      (coordinate_dim, 1, precision_dim)
+  window_sum = window_sum.transpose(1, 0, 2).reshape(
+      (window_dim, coordinate_dim, 1, precision_dim)
   )
+  result = window_sum[window_dim - 1]
 
   def fori_loop_body(_, result):
     result = jec.pdul_lazy_twisted_pack(result)
@@ -839,9 +828,7 @@ def window_merge_scan_algorithm_twisted(
 
   def scan_body(result, window_sum):
     result = jax.lax.fori_loop(0, slice_length, fori_loop_body, result)
-    result = jec.padd_lazy_twisted_pack(
-        result, window_sum.reshape((coordinate_dim, 1, util.U16_EXT_CHUNK_NUM))
-    )
+    result = jec.padd_lazy_twisted_pack(result, window_sum)
     return result, None
 
   result, _ = jax.lax.scan(
@@ -1001,6 +988,7 @@ class MSMPippengerTwisted:
     self.all_buckets = bucket_accumulation_index_func(
         self.all_buckets, self.all_points, self.selection_index_list
     )
+    # for i in range(self.coordinate_num):
     return self.all_buckets
 
   def bucket_reduction(self, bucket_reduction_func):

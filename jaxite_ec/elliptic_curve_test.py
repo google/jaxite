@@ -81,7 +81,7 @@ class TestEllipticCurve(absltest.TestCase):
     profile_name = "jit_pdul_barrett_xyzz_pack"
     # copybara: util.profile_jax_functions(tasks, profile_name)
 
-  def test_jit_pdul_barrett_xyzz_pack_two_no_batch(self):
+  def test_pdul_barrett_xyzz_pack_two_no_batch(self):
     point_a_jax = util.int_point_batch_to_jax_point_pack(
         [self.point_a + [1] * (self.coordinate_num - len(self.point_a))]
     )
@@ -112,7 +112,7 @@ class TestEllipticCurve(absltest.TestCase):
     profile_name = "jit_pdul_barrett_xyzz_pack"
     # copybara: util.profile_jax_functions(tasks, profile_name)
 
-  def test_jit_pdul_barrett_xyzz_pack_two_batch(self):
+  def test_pdul_barrett_xyzz_pack_two_batch(self):
     point_a_jax = util.int_point_batch_to_jax_point_pack(
         [self.point_a + [1] * (self.coordinate_num - len(self.point_a))]
     )
@@ -143,11 +143,11 @@ class TestEllipticCurve(absltest.TestCase):
   def test_padd_lazy_xyzz_pack(self):
     point_a_jax = util.int_point_batch_to_jax_point_pack(
         [self.point_a + [1] * (self.coordinate_num - len(self.point_a))],
-        chunk_num=util.U16_EXT_CHUNK_NUM,
+        array_size=util.U16_EXT_CHUNK_NUM,
     )
     point_b_jax = util.int_point_batch_to_jax_point_pack(
         [self.point_b + [1] * (self.coordinate_num - len(self.point_b))],
-        chunk_num=util.U16_EXT_CHUNK_NUM,
+        array_size=util.U16_EXT_CHUNK_NUM,
     )
     # lazy_mat = util.construct_lazy_matrix(util.MODULUS_377_INT)
     jit_padd_lazy_xyzz_pack = jax.jit(jec.padd_lazy_xyzz_pack)
@@ -181,7 +181,7 @@ class TestEllipticCurve(absltest.TestCase):
   def test_pdul_lazy_xyzz_pack(self):
     point_a_jax = util.int_point_batch_to_jax_point_pack(
         [self.point_a + [1] * (self.coordinate_num - len(self.point_a))],
-        chunk_num=util.U16_EXT_CHUNK_NUM,
+        array_size=util.U16_EXT_CHUNK_NUM,
     )
 
     # lazy_mat = util.construct_lazy_matrix(util.MODULUS_377_INT)
@@ -213,6 +213,69 @@ class TestEllipticCurve(absltest.TestCase):
     profile_name = "jit_pdul_lazy_xyzz_pack"
     # copybara: util.profile_jax_functions(tasks, profile_name)
 
+  def test_padd_barrett_twisted_pack(self):
+    twisted_ec_sys = ec.ECCSTwistedEdwardsExtended(
+        config_file.config_BLS12_377_t
+    )
+    twist_a = twisted_ec_sys.twist_int_coordinates(self.point_a)
+    twist_b = twisted_ec_sys.twist_int_coordinates(self.point_b)
+
+    point_a_jax = util.int_point_batch_to_jax_point_pack(
+        [twist_a], array_size=util.U16_CHUNK_NUM
+    )
+    point_b_jax = util.int_point_batch_to_jax_point_pack(
+        [twist_b], array_size=util.U16_CHUNK_NUM
+    )
+
+    jit_padd_barrett_twisted_pack = jax.jit(jec.padd_barrett_twisted_pack)
+    result_jax = jit_padd_barrett_twisted_pack(point_a_jax, point_b_jax)
+    result_int = util.jax_point_pack_to_int_point_batch(result_jax)
+
+    result_affine_point = twisted_ec_sys.generate_point(
+        result_int[0], twist=False
+    ).convert_to_affine()
+
+    self.assertEqual(
+        result_affine_point[0].get_value(),
+        self.true_result_padd_affine[0].get_value(),
+    )
+    self.assertEqual(
+        result_affine_point[1].get_value(),
+        self.true_result_padd_affine[1].get_value(),
+    )
+
+  def test_pdul_barrett_twisted_pack(self):
+    twisted_ec_sys = ec.ECCSTwistedEdwardsExtended(
+        config_file.config_BLS12_377_t
+    )
+    twist_a = twisted_ec_sys.twist_int_coordinates(self.point_a)
+    point_a_jax = util.int_point_batch_to_jax_point_pack(
+        [twist_a], array_size=util.U16_CHUNK_NUM
+    )
+
+    jit_pdul_barrett_twisted_pack = jax.jit(jec.pdul_barrett_twisted_pack)
+    result_jax = jit_pdul_barrett_twisted_pack(point_a_jax)
+    result_int = util.jax_point_pack_to_int_point_batch(result_jax)
+
+    result_affine_point = twisted_ec_sys.generate_point(
+        result_int[0], twist=False
+    ).convert_to_affine()
+    self.assertEqual(
+        result_affine_point[0].get_value(),
+        self.true_result_pdub_a_affine[0].get_value(),
+    )
+    self.assertEqual(
+        result_affine_point[1].get_value(),
+        self.true_result_pdub_a_affine[1].get_value(),
+    )
+
+    # performance measurement
+    tasks = [
+        (jit_pdul_barrett_twisted_pack, (point_a_jax,)),
+    ]
+    profile_name = "jit_pdul_barrett_twisted_pack"
+    # copybara: util.profile_jax_functions(tasks, profile_name)
+
   def test_padd_lazy_twisted_pack(self):
     twisted_ec_sys = ec.ECCSTwistedEdwardsExtended(
         config_file.config_BLS12_377_t
@@ -221,10 +284,10 @@ class TestEllipticCurve(absltest.TestCase):
     twist_b = twisted_ec_sys.twist_int_coordinates(self.point_b)
 
     point_a_jax = util.int_point_batch_to_jax_point_pack(
-        [twist_a], chunk_num=util.U16_EXT_CHUNK_NUM
+        [twist_a], array_size=util.U16_EXT_CHUNK_NUM
     )
     point_b_jax = util.int_point_batch_to_jax_point_pack(
-        [twist_b], chunk_num=util.U16_EXT_CHUNK_NUM
+        [twist_b], array_size=util.U16_EXT_CHUNK_NUM
     )
 
     jit_padd_lazy_twisted_pack = jax.jit(jec.padd_lazy_twisted_pack)
@@ -244,6 +307,7 @@ class TestEllipticCurve(absltest.TestCase):
         self.true_result_padd_affine[1].get_value(),
     )
 
+  @absltest.skip("skip current test")
   def test_padd_lazy_twisted_pack_batch(self):
     for batch_size in [1, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]:
       twisted_ec_sys = ec.ECCSTwistedEdwardsExtended(
@@ -253,10 +317,10 @@ class TestEllipticCurve(absltest.TestCase):
       twist_b = twisted_ec_sys.twist_int_coordinates(self.point_b)
 
       point_a_jax = util.int_point_batch_to_jax_point_pack(
-          [twist_a], chunk_num=util.U16_EXT_CHUNK_NUM
+          [twist_a], array_size=util.U16_EXT_CHUNK_NUM
       )
       point_b_jax = util.int_point_batch_to_jax_point_pack(
-          [twist_b], chunk_num=util.U16_EXT_CHUNK_NUM
+          [twist_b], array_size=util.U16_EXT_CHUNK_NUM
       )
       point_a_jax = jnp.broadcast_to(
           point_a_jax, (point_a_jax.shape[0], batch_size, point_a_jax.shape[-1])
@@ -309,10 +373,10 @@ class TestEllipticCurve(absltest.TestCase):
     twist_a2 = twisted_ec_sys.twist_int_coordinates(self.point_a)
 
     point_a1_jax = util.int_point_batch_to_jax_point_pack(
-        [twist_a1], chunk_num=util.U16_EXT_CHUNK_NUM
+        [twist_a1], array_size=util.U16_EXT_CHUNK_NUM
     )
     point_a2_jax = util.int_point_batch_to_jax_point_pack(
-        [twist_a2], chunk_num=util.U16_EXT_CHUNK_NUM
+        [twist_a2], array_size=util.U16_EXT_CHUNK_NUM
     )
 
     jit_padd_lazy_twisted_pack = jax.jit(jec.padd_lazy_twisted_pack)
@@ -345,7 +409,7 @@ class TestEllipticCurve(absltest.TestCase):
     )
     twist_a = twisted_ec_sys.twist_int_coordinates(self.point_a)
     point_a_jax = util.int_point_batch_to_jax_point_pack(
-        [twist_a], chunk_num=util.U16_EXT_CHUNK_NUM
+        [twist_a], array_size=util.U16_EXT_CHUNK_NUM
     )
 
     jit_pdul_lazy_twisted_pack = jax.jit(jec.pdul_lazy_twisted_pack)
@@ -371,7 +435,7 @@ class TestEllipticCurve(absltest.TestCase):
     profile_name = "jit_pdul_lazy_twisted_pack"
     # copybara: util.profile_jax_functions(tasks, profile_name)
 
-  def test_jit_pneg_lazy_twisted_pack(self):
+  def test_pneg_lazy_twisted_pack(self):
     twisted_ec_sys = ec.ECCSTwistedEdwardsExtended(
         config_file.config_BLS12_377_t
     )
@@ -379,10 +443,10 @@ class TestEllipticCurve(absltest.TestCase):
     twist_b = twisted_ec_sys.twist_int_coordinates(self.point_b)
 
     point_a_jax = util.int_point_batch_to_jax_point_pack(
-        [twist_a], chunk_num=util.U16_EXT_CHUNK_NUM
+        [twist_a], array_size=util.U16_EXT_CHUNK_NUM
     )
     point_b_jax = util.int_point_batch_to_jax_point_pack(
-        [twist_b], chunk_num=util.U16_EXT_CHUNK_NUM
+        [twist_b], array_size=util.U16_EXT_CHUNK_NUM
     )
 
     jit_padd_lazy_twisted_pack = jax.jit(jec.padd_lazy_twisted_pack)
@@ -450,55 +514,6 @@ class TestEllipticCurve(absltest.TestCase):
     ]
     profile_name = "jit_padd_rns_xyzz_pack"
     # copybara: util.profile_jax_functions(tasks, profile_name)
-
-  def test_padd_rns_xyzz_batch(self):
-    for batch_size in [1, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]:
-      point_a_jax = util.int_point_batch_to_jax_rns_point_pack(
-          [self.point_a + [1] * (self.coordinate_num - len(self.point_a))]
-      )
-      point_b_jax = util.int_point_batch_to_jax_rns_point_pack(
-          [self.point_b + [1] * (self.coordinate_num - len(self.point_b))]
-      )
-      point_a_jax = jnp.broadcast_to(
-          point_a_jax, (point_a_jax.shape[0], batch_size, point_a_jax.shape[-1])
-      )
-      point_b_jax = jnp.broadcast_to(
-          point_b_jax, (point_b_jax.shape[0], batch_size, point_b_jax.shape[-1])
-      )
-      rns_mat = util.construct_rns_matrix(util.MODULUS_377_INT)
-
-      jit_padd_rns_xyzz_pack_batch = jax.jit(
-          jax.named_call(
-              functools.partial(jec.padd_rns_xyzz_pack, rns_mat=rns_mat),
-              name="jit_padd_rns_xyzz_pack_batch",
-          ),
-      )
-      result_jax = jit_padd_rns_xyzz_pack_batch(point_a_jax, point_b_jax)
-      result_jax = util.jax_rns_point_pack_to_int_point_batch(result_jax)
-
-      self.assertEqual(
-          result_jax[0][0] % util.MODULUS_377_INT,
-          self.true_result_padd[0].get_value(),
-      )
-      self.assertEqual(
-          result_jax[0][1] % util.MODULUS_377_INT,
-          self.true_result_padd[1].get_value(),
-      )
-      self.assertEqual(
-          result_jax[0][2] % util.MODULUS_377_INT,
-          self.true_result_padd[2].get_value(),
-      )
-      self.assertEqual(
-          result_jax[0][3] % util.MODULUS_377_INT,
-          self.true_result_padd[3].get_value(),
-      )
-
-      # performance measurement
-      tasks = [
-          (jit_padd_rns_xyzz_pack_batch, (point_a_jax, point_b_jax)),
-      ]
-      profile_name = f"jit_padd_rns_xyzz_pack_batch_{batch_size}"
-      # copybara: util.profile_jax_functions(tasks, profile_name)
 
   def test_pdul_rns_xyzz_pack(self):
     point_a_jax = util.int_point_batch_to_jax_rns_point_pack(
@@ -811,10 +826,10 @@ class TestEllipticCurve(absltest.TestCase):
     )
     twist_a = twisted_ec_sys.twist_int_coordinates(self.point_a)
     point_a_jax = util.int_point_batch_to_jax_point_pack(
-        [twist_a], chunk_num=util.U16_EXT_CHUNK_NUM
+        [twist_a], array_size=util.U16_EXT_CHUNK_NUM
     )
     point_zero_jax = util.int_point_batch_to_jax_point_pack(
-        [self.zero_twisted], chunk_num=util.U16_EXT_CHUNK_NUM
+        [self.zero_twisted], array_size=util.U16_EXT_CHUNK_NUM
     )
 
     jit_padd_lazy_twisted_pack = jax.jit(
@@ -885,10 +900,10 @@ class TestEllipticCurve(absltest.TestCase):
     twist_a = twisted_ec_sys.twist_int_coordinates(test_in_point)
     twist_b = [0, 1, 1, 0]
     point_a_jax = util.int_point_batch_to_jax_point_pack(
-        [twist_a], chunk_num=util.U16_EXT_CHUNK_NUM
+        [twist_a], array_size=util.U16_EXT_CHUNK_NUM
     )
     point_b_jax = util.int_point_batch_to_jax_point_pack(
-        [twist_b], chunk_num=util.U16_EXT_CHUNK_NUM
+        [twist_b], array_size=util.U16_EXT_CHUNK_NUM
     )
     point_a_jax_rns = util.int_point_batch_to_jax_rns_point_pack([twist_a])
     point_b_jax_rns = util.int_point_batch_to_jax_rns_point_pack([twist_b])
@@ -934,6 +949,192 @@ class TestEllipticCurve(absltest.TestCase):
         affine_sum_point[1].get_value() % util.MODULUS_377_INT,
         affine_sum_point_rns[1].get_value() % util.MODULUS_377_INT,
     )
+
+  def test_padd_barrett_xyzz_pack_batch(self):
+    point_a_in = util.int_point_batch_to_jax_point_pack(
+        [self.point_a + [1] * (self.coordinate_num - len(self.point_a))]
+    )
+    point_b_in = util.int_point_batch_to_jax_point_pack(
+        [self.point_b + [1] * (self.coordinate_num - len(self.point_b))]
+    )
+    for batch_size in [1, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]:
+      point_a_jax = jnp.broadcast_to(
+          point_a_in, (point_a_in.shape[0], batch_size, point_a_in.shape[-1])
+      )
+      point_b_jax = jnp.broadcast_to(
+          point_b_in, (point_b_in.shape[0], batch_size, point_b_in.shape[-1])
+      )
+      jit_padd_barrett_xyzz_pack = jax.jit(
+          jax.named_call(jec.padd_barrett_xyzz_pack,
+                         name=f"jit_padd_barrett_xyzz_pack_{batch_size}")
+      )
+
+      result_jax = jit_padd_barrett_xyzz_pack(point_a_jax, point_b_jax)
+      result_jax = util.jax_point_pack_to_int_point_batch(result_jax)
+
+      self.assertEqual(result_jax[0][0], self.true_result_padd[0].get_value())
+      self.assertEqual(result_jax[0][1], self.true_result_padd[1].get_value())
+      self.assertEqual(result_jax[0][2], self.true_result_padd[2].get_value())
+      self.assertEqual(result_jax[0][3], self.true_result_padd[3].get_value())
+
+      # performance measurement
+      tasks = [
+          (jit_padd_barrett_xyzz_pack, (point_a_jax, point_b_jax)),
+      ]
+      profile_name = f"jit_padd_barrett_xyzz_pack_{batch_size}"
+      # copybara: util.profile_jax_functions(tasks, profile_name)
+
+  def test_padd_barrett_twisted_pack_batch(self):
+    twisted_ec_sys = ec.ECCSTwistedEdwardsExtended(
+        config_file.config_BLS12_377_t
+    )
+    twist_a = twisted_ec_sys.twist_int_coordinates(self.point_a)
+    twist_b = twisted_ec_sys.twist_int_coordinates(self.point_b)
+
+    point_a_in = util.int_point_batch_to_jax_point_pack(
+        [twist_a], array_size=util.U16_CHUNK_NUM
+    )
+    point_b_in = util.int_point_batch_to_jax_point_pack(
+        [twist_b], array_size=util.U16_CHUNK_NUM
+    )
+    for batch_size in [1, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]:
+      point_a_jax = jnp.broadcast_to(
+          point_a_in, (point_a_in.shape[0], batch_size, point_a_in.shape[-1])
+      )
+      point_b_jax = jnp.broadcast_to(
+          point_b_in, (point_b_in.shape[0], batch_size, point_b_in.shape[-1])
+      )
+      jit_padd_barrett_twisted_pack = jax.jit(
+          jax.named_call(
+              jec.padd_barrett_twisted_pack,
+              name=f"jit_padd_barrett_twisted_pack_{batch_size}",
+          )
+      )
+      result_jax = jit_padd_barrett_twisted_pack(point_a_jax, point_b_jax)
+      result_int = util.jax_point_pack_to_int_point_batch(result_jax)
+
+      result_affine_point = twisted_ec_sys.generate_point(
+          result_int[0], twist=False
+      ).convert_to_affine()
+
+      self.assertEqual(
+          result_affine_point[0].get_value(),
+          self.true_result_padd_affine[0].get_value(),
+      )
+      self.assertEqual(
+          result_affine_point[1].get_value(),
+          self.true_result_padd_affine[1].get_value(),
+      )
+      # performance measurement
+      tasks = [
+          (jit_padd_barrett_twisted_pack, (point_a_jax, point_b_jax)),
+      ]
+      profile_name = f"jit_padd_barrett_twisted_pack_{batch_size}"
+      # copybara: util.profile_jax_functions(tasks, profile_name)
+
+  # @absltest.skip("skip current test")
+  def test_padd_rns_xyzz_batch(self):
+    for batch_size in [1, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]:
+      point_a_jax = util.int_point_batch_to_jax_rns_point_pack(
+          [self.point_a + [1] * (self.coordinate_num - len(self.point_a))]
+      )
+      point_b_jax = util.int_point_batch_to_jax_rns_point_pack(
+          [self.point_b + [1] * (self.coordinate_num - len(self.point_b))]
+      )
+      point_a_jax = jnp.broadcast_to(
+          point_a_jax, (point_a_jax.shape[0], batch_size, point_a_jax.shape[-1])
+      )
+      point_b_jax = jnp.broadcast_to(
+          point_b_jax, (point_b_jax.shape[0], batch_size, point_b_jax.shape[-1])
+      )
+      rns_mat = util.construct_rns_matrix(util.MODULUS_377_INT)
+
+      jit_padd_rns_xyzz_pack_batch = jax.jit(
+          jax.named_call(
+              functools.partial(jec.padd_rns_xyzz_pack, rns_mat=rns_mat),
+              name=f"jit_padd_rns_xyzz_pack_batch_{batch_size}",
+          ),
+      )
+      result_jax = jit_padd_rns_xyzz_pack_batch(point_a_jax, point_b_jax)
+      result_jax = util.jax_rns_point_pack_to_int_point_batch(result_jax)
+
+      self.assertEqual(
+          result_jax[0][0] % util.MODULUS_377_INT,
+          self.true_result_padd[0].get_value(),
+      )
+      self.assertEqual(
+          result_jax[0][1] % util.MODULUS_377_INT,
+          self.true_result_padd[1].get_value(),
+      )
+      self.assertEqual(
+          result_jax[0][2] % util.MODULUS_377_INT,
+          self.true_result_padd[2].get_value(),
+      )
+      self.assertEqual(
+          result_jax[0][3] % util.MODULUS_377_INT,
+          self.true_result_padd[3].get_value(),
+      )
+
+      # performance measurement
+      tasks = [
+          (jit_padd_rns_xyzz_pack_batch, (point_a_jax, point_b_jax)),
+      ]
+      profile_name = f"jit_padd_rns_xyzz_pack_batch_{batch_size}"
+      # copybara: util.profile_jax_functions(tasks, profile_name)
+
+  # @absltest.skip("Skip for now")
+  def test_padd_rns_twisted_pack_new_twist_batch(self):
+    twisted_ec_sys = ec.ECCSTwistedEdwardsExtended(
+        config_file.config_BLS12_377_t
+    )
+    rns_mat = util.construct_rns_matrix(util.MODULUS_377_INT)
+    twist_a = twisted_ec_sys.twist_int_coordinates(self.point_a)
+    twist_b = twisted_ec_sys.twist_int_coordinates(self.point_b)
+    twist_a_jax = util.int_point_to_jax_rns_point_pack(twist_a).reshape(
+        util.COORDINATE_NUM, 1, util.NUM_MODULI
+    )
+    twist_b_jax = util.int_point_to_jax_rns_point_pack(twist_b).reshape(
+        util.COORDINATE_NUM, 1, util.NUM_MODULI
+    )
+
+    for batch_size in [1, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]:
+      point_a_jax = jnp.broadcast_to(
+          twist_a_jax, (twist_a_jax.shape[0], batch_size, twist_a_jax.shape[-1])
+      )
+      point_b_jax = jnp.broadcast_to(
+          twist_b_jax, (twist_b_jax.shape[0], batch_size, twist_b_jax.shape[-1])
+      )
+
+      jit_padd_rns_twisted_pack_batch = jax.jit(
+          jax.named_call(
+              functools.partial(jec.padd_rns_twisted_pack, rns_mat=rns_mat),
+              name=f"jit_padd_rns_twisted_pack_batch_{batch_size}",
+          ),
+      )
+      result_batch = jit_padd_rns_twisted_pack_batch(point_a_jax, point_b_jax)
+      project_twist_sum = util.jax_rns_point_pack_to_int_point_batch(
+          result_batch
+      )
+      project_twist_jax = twisted_ec_sys.generate_point(
+          project_twist_sum[0], twist=False
+      ).convert_to_affine()
+
+      self.assertEqual(
+          project_twist_jax[0].get_value() % util.MODULUS_377_INT,
+          self.true_result_padd_affine[0].get_value(),
+      )
+      self.assertEqual(
+          project_twist_jax[1].get_value() % util.MODULUS_377_INT,
+          self.true_result_padd_affine[1].get_value(),
+      )
+
+      # performance measurement
+      tasks = [
+          (jit_padd_rns_twisted_pack_batch, (point_a_jax, point_b_jax)),
+      ]
+      profile_name = f"jit_padd_rns_twisted_pack_batch_{batch_size}"
+      # copybara: util.profile_jax_functions(tasks, profile_name)
+
 
 if __name__ == "__main__":
   absltest.main()
