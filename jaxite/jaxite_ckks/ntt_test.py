@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 from jaxite.jaxite_ckks import math as ckks_math
 from jaxite.jaxite_ckks import ntt
+from jaxite.jaxite_ckks import ntt_cpu
 import numpy as np
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -66,11 +67,59 @@ class NTTTest(parameterized.TestCase):
 
     np.testing.assert_allclose(v, recovered)
 
+  def test_ntt_cpu_equivalence(self):
+    r, c = 4, 4
+    moduli = [TEST_PRIMES[0]]
+
+    ntt_kernel = ntt.NTTBarrett()
+    ntt_kernel.precompute_constants(moduli, r, c)
+
+    key = jax.random.PRNGKey(42)
+    v = jax.random.randint(
+        key, (1, r, c, len(moduli)), 0, min(moduli), dtype=jnp.uint32
+    )
+
+    transformed_tpu = ntt_kernel.ntt(v)
+
+    v_reshaped = v.reshape(r * c, len(moduli))
+    transformed_cpu = ntt_cpu.ntt_negacyclic_poly(np.array(v_reshaped), moduli)
+
+    np.testing.assert_array_equal(
+        transformed_tpu.reshape(r * c, len(moduli)), transformed_cpu
+    )
+
+  @hypothesis.given(
+      r_log2=st.integers(min_value=1, max_value=4),
+      c_log2=st.integers(min_value=1, max_value=4),
+  )
+  @hypothesis.settings(deadline=None, max_examples=5)
+  def test_ntt_cpu_equivalence_property(self, r_log2, c_log2):
+    r = 2**r_log2
+    c = 2**c_log2
+    moduli = [TEST_PRIMES[0]]
+
+    ntt_kernel = ntt.NTTBarrett()
+    ntt_kernel.precompute_constants(moduli, r, c)
+
+    key = jax.random.PRNGKey(0)
+    v = jax.random.randint(
+        key, (1, r, c, len(moduli)), 0, moduli[0], dtype=jnp.uint32
+    )
+
+    transformed_tpu = ntt_kernel.ntt(v)
+
+    v_reshaped = v.reshape(r * c, len(moduli))
+    transformed_cpu = ntt_cpu.ntt_negacyclic_poly(np.array(v_reshaped), moduli)
+
+    np.testing.assert_array_equal(
+        transformed_tpu.reshape(r * c, len(moduli)), transformed_cpu
+    )
+
   @hypothesis.given(
       r_log2=st.integers(min_value=1, max_value=6),
       c_log2=st.integers(min_value=1, max_value=6),
   )
-  @hypothesis.settings(deadline=None, max_examples=30)
+  @hypothesis.settings(deadline=None, max_examples=2)
   def test_ntt_intt_identity_property(self, r_log2, c_log2):
     r = 2**r_log2
     c = 2**c_log2

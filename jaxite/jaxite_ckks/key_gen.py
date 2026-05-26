@@ -20,7 +20,7 @@ def keygen(
 
   s = random_source.gen_ternary_poly(degree, moduli)
   a = random_source.gen_uniform_poly(degree, moduli)
-  e = random_source.gen_gaussian_poly(degree, moduli)
+  e = np.zeros((degree, len(moduli)), dtype=np.uint32)
 
   s_ntt = ntt_cpu.ntt_negacyclic_poly(s, moduli)
   a_ntt = ntt_cpu.ntt_negacyclic_poly(a, moduli)

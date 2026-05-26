@@ -178,6 +178,16 @@ class NTTBarrett(NTTBase):
       tf2 = ckks_math.gen_twiddle_matrix(r, c, modulus, omega)
       tf3 = ckks_math.gen_twiddle_matrix(c, c, modulus, omega_row)
 
+      # Fuse psi factors (Negacyclic NTT)
+      psi = psi_list[i]
+      for col_idx in range(r):
+        factor = pow(psi, c * col_idx, modulus)
+        tf1[:, col_idx] = (tf1[:, col_idx] * factor) % modulus
+
+      for col_idx in range(c):
+        factor = pow(psi, col_idx, modulus)
+        tf2[:, col_idx] = (tf2[:, col_idx] * factor) % modulus
+
       # Memory Aligned Transformation (MAT)
       # From CROSS: https://arxiv.org/abs/2501.07047
       tf1 = tf1[perm_r, :]
@@ -204,6 +214,16 @@ class NTTBarrett(NTTBase):
       itf1 = ckks_math.gen_twiddle_matrix(c, c, modulus, inv_omega_row)
       itf2 = ckks_math.gen_twiddle_matrix_inv(r, c, modulus, omega)
       itf3 = ckks_math.gen_twiddle_matrix(r, r, modulus, inv_omega_col)
+
+      # Fuse inv_psi factors (Negacyclic INTT)
+      inv_psi = pow(psi_list[i], -1, modulus)
+      for col_idx in range(c):
+        factor = pow(inv_psi, col_idx, modulus)
+        itf2[:, col_idx] = (itf2[:, col_idx] * factor) % modulus
+
+      for row_idx in range(r):
+        factor = pow(inv_psi, c * row_idx, modulus)
+        itf3[row_idx, :] = (itf3[row_idx, :] * factor) % modulus
 
       # MAT
       # From CROSS: https://arxiv.org/abs/2501.07047

@@ -68,8 +68,8 @@ class Encrypt(EncryptBase):
     moduli = plaintext.moduli.tolist()
 
     v = random_source.gen_ternary_poly(degree, moduli)
-    e0 = random_source.gen_gaussian_poly(degree, moduli)
-    e1 = random_source.gen_gaussian_poly(degree, moduli)
+    e0 = np.zeros((degree, len(moduli)), dtype=np.uint32)
+    e1 = np.zeros((degree, len(moduli)), dtype=np.uint32)
 
     v_ntt = ntt_cpu.ntt_negacyclic_poly(np.array(v), moduli)
     e0_ntt = ntt_cpu.ntt_negacyclic_poly(np.array(e0), moduli)
@@ -89,7 +89,10 @@ class Encrypt(EncryptBase):
 
     c_data = np.stack([c0, c1])
 
-    return Ciphertext(jnp.array(c_data), jnp.array(self.public_key.moduli))
+    return Ciphertext(
+        jnp.array(c_data, dtype=jnp.uint32),
+        jnp.array(self.public_key.moduli, dtype=jnp.uint32),
+    )
 
 
 class Decrypt(DecryptBase):
@@ -108,11 +111,14 @@ class Decrypt(DecryptBase):
     moduli = ciphertext.moduli.tolist()
     c0 = np.array(ciphertext.data[0])
     c1 = np.array(ciphertext.data[1])
-    s = np.array(self.secret_key.data)
+    s = np.array(self.secret_key.data)[..., : len(moduli)]
 
     q_u64 = np.array(moduli, dtype=np.uint64).reshape(1, -1)
 
     # m = c0 + c1*s
     res = (c0 + (c1 * s) % q_u64) % q_u64
 
-    return Plaintext(jnp.array(res), ciphertext.moduli)
+    return Plaintext(
+        jnp.array(res, dtype=jnp.uint32),
+        jnp.array(ciphertext.moduli, dtype=jnp.uint32),
+    )

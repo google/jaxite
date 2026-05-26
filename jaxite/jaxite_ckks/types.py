@@ -6,7 +6,7 @@ import numpy as np
 
 
 @jax.tree_util.register_pytree_node_class
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class Plaintext:
   """A CKKS Plaintext."""
 
@@ -22,7 +22,7 @@ class Plaintext:
 
 
 @jax.tree_util.register_pytree_node_class
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class Ciphertext:
   """A CKKS Ciphertext."""
 
