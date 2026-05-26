@@ -1,6 +1,6 @@
 """Testing util helpers"""
 
-load("@rules_python//python:defs.bzl", "py_test")
+load("//third_party/bazel_rules/rules_python/python:py_test.bzl", "py_test")
 
 # This file is a shim to have the same Google-internal and external API
 # for running jaxite on TPU and GPU tests. The internal API is not
