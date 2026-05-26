@@ -78,6 +78,10 @@ py_library(
             "jaxite_ckks/*",
         ],
     ),
+    data = [
+        "jaxite_ec/configurations.toml",
+        # "@jaxite//jaxite_ec/c_kernels:distribution.so",
+    ],
     visibility = [":internal"],
     deps = [
         ":jaxite_ckks",
@@ -88,7 +92,10 @@ py_library(
         "@jaxite_deps//jaxlib",
         # copybara: jax/experimental:pallas_lib
         # copybara: jax/experimental:pallas_tpu
+        "@jaxite//jaxite_ec/c_kernels:build",
         "@jaxite_deps//numpy",
+        # copybara: pandas
+        # copybara: toml
     ],
 )
 
@@ -142,17 +149,10 @@ tpu_test(
 )
 
 tpu_test(
-    name = "jaxite_ec_finite_field_test",
-    size = "large",
-    timeout = "moderate",
+    name = "ec_finite_field_test",
     srcs = ["jaxite_ec/finite_field_test.py"],
-    python_version = "PY3",
-    shard_count = 3,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
-        # copybara: xprof_analysis_client  # buildcleaner: keep
-        # copybara: xprof_session  # buildcleaner: keep
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
         "@jaxite_deps//jax",
@@ -162,57 +162,103 @@ tpu_test(
 )
 
 tpu_test(
-    name = "msm_test",
-    size = "large",
-    timeout = "eternal",
-    srcs = [
-        "jaxite_ec/msm_test.py",
-    ],
-    data = [
-        "jaxite_ec/test_case/t1/zprize_msm_curve_377_bases_dim_1_seed_0.csv",
-        "jaxite_ec/test_case/t1/zprize_msm_curve_377_res_dim_1_seed_0.csv",
-        "jaxite_ec/test_case/t1/zprize_msm_curve_377_scalars_dim_1_seed_0.csv",
-        "jaxite_ec/test_case/t1024/zprize_msm_curve_377_bases_dim_1024_seed_0.csv",
-        "jaxite_ec/test_case/t1024/zprize_msm_curve_377_res_dim_1024_seed_0.csv",
-        "jaxite_ec/test_case/t1024/zprize_msm_curve_377_scalars_dim_1024_seed_0.csv",
-        "jaxite_ec/test_case/t2/zprize_msm_curve_377_bases_dim_2_seed_0.csv",
-        "jaxite_ec/test_case/t2/zprize_msm_curve_377_res_dim_2_seed_0.csv",
-        "jaxite_ec/test_case/t2/zprize_msm_curve_377_scalars_dim_2_seed_0.csv",
-        "jaxite_ec/test_case/t4/zprize_msm_curve_377_bases_dim_4_seed_0.csv",
-        "jaxite_ec/test_case/t4/zprize_msm_curve_377_res_dim_4_seed_0.csv",
-        "jaxite_ec/test_case/t4/zprize_msm_curve_377_scalars_dim_4_seed_0.csv",
-        "jaxite_ec/test_case/t8/zprize_msm_curve_377_bases_dim_8_seed_0.csv",
-        "jaxite_ec/test_case/t8/zprize_msm_curve_377_res_dim_8_seed_0.csv",
-        "jaxite_ec/test_case/t8/zprize_msm_curve_377_scalars_dim_8_seed_0.csv",
-    ],
-    python_version = "PY3",
-    shard_count = 3,
-    srcs_version = "PY3ONLY",
+    name = "ec_finite_field_perf_test",
+    srcs = ["jaxite_ec/finite_field_perf_test.py"],
     deps = [
         ":jaxite",
         # copybara: xprof_analysis_client  # buildcleaner: keep
         # copybara: xprof_session  # buildcleaner: keep
-        # copybara: resources
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",
+        # copybara: toml
     ],
 )
 
 tpu_test(
     name = "elliptic_curve_test",
-    size = "large",
-    timeout = "long",
     srcs = ["jaxite_ec/elliptic_curve_test.py"],
-    python_version = "PY3",
-    shard_count = 16,
-    srcs_version = "PY3ONLY",
+    deps = [
+        ":jaxite",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+        # copybara: toml
+    ],
+)
+
+tpu_test(
+    name = "elliptic_curve_perf_test",
+    srcs = ["jaxite_ec/elliptic_curve_perf_test.py"],
     deps = [
         ":jaxite",
         # copybara: xprof_analysis_client  # buildcleaner: keep
         # copybara: xprof_session  # buildcleaner: keep
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+        # copybara: toml
+    ],
+)
+
+tpu_test(
+    name = "multiscalar_multiplication_test",
+    srcs = ["jaxite_ec/multiscalar_multiplication_test.py"],
+    data = glob(["jaxite_ec/data/t1024/*.csv"]),
+    deps = [
+        ":jaxite",
+        # copybara: xprof_analysis_client  # buildcleaner: keep
+        # copybara: xprof_session  # buildcleaner: keep
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+        # copybara: toml
+    ],
+)
+
+tpu_test(
+    name = "multiscalar_multiplication_perf_test",
+    srcs = ["jaxite_ec/multiscalar_multiplication_perf_test.py"],
+    deps = [
+        ":jaxite",
+        # copybara: xprof_analysis_client  # buildcleaner: keep
+        # copybara: xprof_session  # buildcleaner: keep
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+tpu_test(
+    name = "number_theory_transform_test",
+    srcs = ["jaxite_ec/number_theory_transform_test.py"],
+    deps = [
+        ":jaxite",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+tpu_test(
+    name = "number_theory_transform_perf_test",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["jaxite_ec/number_theory_transform_perf_test.py"],
+    deps = [
+        ":jaxite",
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
         "@jaxite_deps//jax",

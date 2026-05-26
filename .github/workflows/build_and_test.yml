@@ -27,13 +27,14 @@ jobs:
 
       - name: "Run `bazel build`"
         run: |
-          bazel build //...
+          bazel --host_jvm_args=-Xmx32g build --jobs=8 //...
 
       - name: "Run `bazel test`"
         run: |
-          bazel test \
+          bazel --host_jvm_args=-Xmx32g test \
             --test_output=errors \
             --test_size_filters=small \
             --test_timeout=1800 \
             --experimental_ui_max_stdouterr_bytes=10485760 \
+            --jobs=8 \
             //...
