@@ -66,6 +66,23 @@ tpu_test(
     ],
 )
 
+tpu_test(
+    name = "add_kernel_test",
+    size = "small",
+    srcs = ["jaxite/jaxite_ckks/add_test.py"],
+    main = "jaxite/jaxite_ckks/add_test.py",
+    shard_count = 3,
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//hypothesis",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
 py_test(
     name = "encrypt_test",
     size = "small",
