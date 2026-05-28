@@ -166,11 +166,12 @@ class Encode(EncodeBase):
     fft_special_inv(y, self.degree * 2)
     coeffs = np.concatenate([y.real, y.imag])
     scaled_coeffs = np.round(coeffs * self.scale)
-    moduli_arr = np.array(self.moduli, dtype=np.uint64)
-    poly = (scaled_coeffs % moduli_arr[:, None]).T.astype(np.uint64)
+    moduli_arr = np.array(self.moduli, dtype=np.uint32)
+    poly = (scaled_coeffs % moduli_arr[:, None]).T.astype(np.uint32)
     poly_ntt = ntt_cpu.ntt_negacyclic_poly(poly, self.moduli)
     return Plaintext(
-        jnp.array(poly_ntt), jnp.array(self.moduli, dtype=jnp.uint64)
+        jnp.array(poly_ntt, dtype=jnp.uint32),
+        jnp.array(self.moduli, dtype=jnp.uint32),
     )
 
 
@@ -197,9 +198,7 @@ class Decode(DecodeBase):
     combined = np.array(rns_utils.reconstruct_crt(poly.T.tolist(), moduli))
     modulus = math.prod(moduli)
     half_modulus = modulus // 2
-    modded = np.where(
-        combined > half_modulus, combined - modulus, combined
-    ).astype(np.float64)
+    modded = np.where(combined > half_modulus, combined - modulus, combined)
     coeffs = modded / self.scale
     nh = degree // 2
     y = coeffs[:nh] + 1j * coeffs[nh:]

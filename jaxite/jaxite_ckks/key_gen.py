@@ -31,6 +31,6 @@ def keygen(
   b_ntt = (e_ntt + q_u64 - prod) % q_u64
   pk_data = np.stack([b_ntt, a_ntt])
 
-  return PublicKey(
-      pk_data, np.array(moduli, dtype=np.uint64)
-  ), SecretKey(s_ntt, np.array(moduli, dtype=np.uint64))
+  return PublicKey(pk_data, np.array(moduli, dtype=np.uint64)), SecretKey(
+      s_ntt, np.array(moduli, dtype=np.uint64)
+  )

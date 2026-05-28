@@ -54,7 +54,7 @@ class CrossEquivalenceTest(absltest.TestCase):
             [276075424, 22743178, 297873459, 418401481, 384996],
             [309009688, 991696481, 143704361, 422137951, 407445],
         ],
-        dtype=np.uint64,
+        dtype=np.uint32,
     )
 
     encoder = encode.Encode()
@@ -65,7 +65,6 @@ class CrossEquivalenceTest(absltest.TestCase):
 
   def test_encrypt_equivalence(self):
     degree = 16
-    scale = 563019763943521
     moduli = [1073742881, 1073742721, 1073741441, 1073741857, 524353]
 
     plaintext_data = np.array(
@@ -90,11 +89,11 @@ class CrossEquivalenceTest(absltest.TestCase):
         dtype=np.uint64,
     )
     pt = types.Plaintext(
-        data=jnp.array(plaintext_data),
-        moduli=jnp.array(moduli, dtype=jnp.uint64),
+        data=jnp.array(plaintext_data, dtype=jnp.uint32),
+        moduli=jnp.array(moduli, dtype=jnp.uint32),
     )
 
-    ones = np.ones((degree, len(moduli)), dtype=np.uint64)
+    ones = np.ones((degree, len(moduli)), dtype=np.uint32)
     v_coeffs = ntt_cpu.intt_negacyclic_poly(ones, moduli)
     e_coeffs = ntt_cpu.intt_negacyclic_poly(ones, moduli)
 
@@ -111,8 +110,8 @@ class CrossEquivalenceTest(absltest.TestCase):
 
     random_source = MockRandomSource()
 
-    pk_data = np.ones((2, degree, len(moduli)), dtype=np.uint64)
-    pk = types.PublicKey(data=pk_data, moduli=np.array(moduli, dtype=np.uint64))
+    pk_data = np.ones((2, degree, len(moduli)), dtype=np.uint32)
+    pk = types.PublicKey(data=pk_data, moduli=np.array(moduli, dtype=np.uint32))
 
     encryptor = encrypt.Encrypt()
     encryptor.precompute_constants(pk)
@@ -137,12 +136,10 @@ class CrossEquivalenceTest(absltest.TestCase):
             [276075426, 22743180, 297873461, 418401483, 384998],
             [309009690, 991696483, 143704363, 422137953, 407447],
         ],
-        dtype=np.uint64,
+        dtype=np.uint32,
     )
-    expected_c1 = np.full((degree, len(moduli)), 2, dtype=np.uint64)
-
+    expected_c1 = np.full((degree, len(moduli)), 2, dtype=np.uint32)
     expected_data = np.stack([expected_c0, expected_c1], axis=0)
-
     np.testing.assert_array_equal(np.array(ct.data), expected_data)
 
   def test_composition_equivalence(self):
@@ -230,7 +227,6 @@ class CrossEquivalenceTest(absltest.TestCase):
     )
 
     expected_data = np.stack([expected_c0, expected_c1], axis=0)
-
     np.testing.assert_array_equal(np.array(ct.data), expected_data)
 
   def test_ntt_equivalence(self):
