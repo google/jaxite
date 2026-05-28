@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 from jaxite.jaxite_ckks import encode
 from jaxite.jaxite_ckks import encrypt
+from jaxite.jaxite_ckks import ntt
 from jaxite.jaxite_ckks import ntt_cpu
 from jaxite.jaxite_ckks import random
 from jaxite.jaxite_ckks import types
@@ -231,6 +232,104 @@ class CrossEquivalenceTest(absltest.TestCase):
     expected_data = np.stack([expected_c0, expected_c1], axis=0)
 
     np.testing.assert_array_equal(np.array(ct.data), expected_data)
+
+  def test_ntt_equivalence(self):
+    moduli = [2147483489, 2147483137, 2147482817]
+    r, c = 4, 4
+    degree = r * c
+    b = 2
+
+    coef_in_raw = [
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+        [7, 0, 0, 0, 11, 0, 0, 0, 13, 0, 0, 0, 17, 0, 0, 0],
+        [16, 1, 15, 2, 14, 3, 13, 4, 12, 5, 11, 6, 10, 7, 9, 8],
+    ]
+    eval_in_raw = [
+        [
+            1927271639,
+            1976851019,
+            961431098,
+            750997937,
+            1858820200,
+            1645119999,
+            137255436,
+            1444884120,
+            379729034,
+            612811897,
+            1855784060,
+            1875694634,
+            102353194,
+            1048752242,
+            1711958033,
+            1037636875,
+        ],
+        [
+            1409600302,
+            1409600302,
+            1409600302,
+            1409600302,
+            1397968663,
+            1397968663,
+            1397968663,
+            1397968663,
+            1703050717,
+            1703050717,
+            1703050717,
+            1703050717,
+            1931829757,
+            1931829757,
+            1931829757,
+            1931829757,
+        ],
+        [
+            675784815,
+            337807662,
+            1571641390,
+            400235048,
+            1145917821,
+            477891965,
+            1006973034,
+            524384318,
+            1690087058,
+            137036486,
+            1954663574,
+            889829120,
+            1108726548,
+            2133686119,
+            1387723090,
+            1737474744,
+        ],
+    ]
+
+    coef_in = jnp.concatenate(
+        [
+            jnp.array(coef_in_raw, dtype=jnp.uint32)
+            .transpose(1, 0)
+            .reshape(1, degree, -1)
+            for _ in range(b)
+        ],
+        axis=0,
+    )
+    eval_in = jnp.concatenate(
+        [
+            jnp.array(eval_in_raw, dtype=jnp.uint32)
+            .transpose(1, 0)
+            .reshape(1, degree, -1)
+            for _ in range(b)
+        ],
+        axis=0,
+    )
+
+    ntt_kernel = ntt.NTTBarrett()
+    ntt_kernel.precompute_constants(moduli, r, c)
+
+    ntt_input = coef_in.reshape(b, r, c, -1)
+    ntt_output = ntt_kernel.ntt(ntt_input)
+
+    np.testing.assert_array_equal(eval_in, ntt_output.reshape(b, degree, -1))
+
+    intt_output = ntt_kernel.intt(ntt_output)
+    np.testing.assert_array_equal(coef_in, intt_output.reshape(b, degree, -1))
 
 
 if __name__ == '__main__':
