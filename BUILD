@@ -55,8 +55,10 @@ py_test(
 
 tpu_test(
     name = "cross_equivalence_test",
-    size = "small",
+    size = "medium",
     srcs = ["jaxite/jaxite_ckks/cross_equivalence_test.py"],
+    data = ["jaxite_ckks/cross_equivalence_test_data.json"],
+    shard_count = 3,
     deps = [
         ":jaxite_ckks",
         "@abseil-py//absl/testing:absltest",
@@ -595,6 +597,20 @@ tpu_test(
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
         "@jaxite_deps//hypothesis",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+tpu_test(
+    name = "mul_test",
+    size = "medium",
+    srcs = ["jaxite/jaxite_ckks/mul_test.py"],
+    shard_count = 3,
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",
