@@ -125,7 +125,9 @@ class DecodeBase(ABC):
     """Precomputes constants for decoding."""
 
   @abstractmethod
-  def decode(self, plaintext: Plaintext) -> list[complex]:
+  def decode(
+      self, plaintext: Plaintext, is_slot_form: bool = False
+  ) -> list[complex]:
     """Decode an RNS-CKKS plaintext into a cleartext vector."""
 
 
@@ -186,7 +188,9 @@ class Decode(DecodeBase):
     self.scale = scale
     self.num_slots = num_slots
 
-  def decode(self, plaintext: Plaintext) -> list[complex]:
+  def decode(
+      self, plaintext: Plaintext, is_slot_form: bool = False
+  ) -> list[complex]:
     if self.scale is None or self.num_slots is None:
       raise ValueError(
           "scale and num_slots must be set via precompute_constants first."
@@ -194,7 +198,10 @@ class Decode(DecodeBase):
 
     moduli = plaintext.moduli.tolist()
     degree = plaintext.data.shape[0]
-    poly = ntt_cpu.intt_negacyclic_poly(np.array(plaintext.data), moduli)
+    if is_slot_form:
+      poly = ntt_cpu.intt_negacyclic_poly(np.array(plaintext.data), moduli)
+    else:
+      poly = np.array(plaintext.data)
     combined = np.array(rns_utils.reconstruct_crt(poly.T.tolist(), moduli))
     modulus = math.prod(moduli)
     half_modulus = modulus // 2

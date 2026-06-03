@@ -9,6 +9,7 @@ import jax.numpy as jnp
 from jaxite.jaxite_ckks import encode
 from jaxite.jaxite_ckks import encrypt
 from jaxite.jaxite_ckks import key_gen
+from jaxite.jaxite_ckks import ntt_cpu
 from jaxite.jaxite_ckks import random
 from jaxite.jaxite_ckks import types
 import numpy as np
@@ -66,11 +67,14 @@ class EncryptTest(absltest.TestCase):
     moduli = [335552513, 335546369]
     rng = std_random.Random(seed)
 
-    pt_data = np.zeros((degree, len(moduli)), dtype=jnp.uint64)
+    pt_data = np.zeros((degree, len(moduli)), dtype=np.uint64)
     for i, q in enumerate(moduli):
       pt_data[:, i] = [rng.randint(0, q - 1) for _ in range(degree)]
+
+    pt_data_ntt = ntt_cpu.ntt_negacyclic_poly(pt_data, moduli)
     pt = types.Plaintext(
-        jnp.array(pt_data), jnp.array(moduli, dtype=jnp.uint64)
+        jnp.array(pt_data_ntt, dtype=jnp.uint32),
+        jnp.array(moduli, dtype=jnp.uint32),
     )
 
     random_source = random.ZeroNoiseRandomSource()
@@ -84,7 +88,7 @@ class EncryptTest(absltest.TestCase):
     decryptor.precompute_constants(sk)
     decrypted_pt = decryptor.decrypt(ct)
 
-    np.testing.assert_array_equal(decrypted_pt.data, pt.data)
+    np.testing.assert_array_equal(np.array(decrypted_pt.data), pt_data)
 
   def test_jax_compatibility(self):
     """Ensure Ciphertext and keys are valid JAX types."""

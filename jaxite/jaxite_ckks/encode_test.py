@@ -28,7 +28,7 @@ class EncodeTest(absltest.TestCase):
 
     decoder = encode.Decode()
     decoder.precompute_constants(scale, len(slots))
-    decoded = decoder.decode(pt)
+    decoded = decoder.decode(pt, is_slot_form=True)
 
     for s, d in zip(slots, decoded):
       self.assertAlmostEqual(s.real, d.real, delta=1.0)
@@ -87,7 +87,7 @@ class CrossDiffTest(absltest.TestCase):
     np.testing.assert_array_equal(np.array(pt.data), expected_data)
     decoder = encode.Decode()
     decoder.precompute_constants(scale, num_slots)
-    decoded = decoder.decode(pt)
+    decoded = decoder.decode(pt, is_slot_form=True)
     np.testing.assert_allclose(decoded, slots, atol=1e-03)
 
 

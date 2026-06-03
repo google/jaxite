@@ -110,7 +110,6 @@ py_library(
     ),
     visibility = [":internal"],
     deps = [
-        ":jaxite_ckks",
         # copybara: xprof_analysis_client  # buildcleaner: keep
         # copybara: xprof_session  # buildcleaner: keep
         "@jaxite_deps//gmpy2",

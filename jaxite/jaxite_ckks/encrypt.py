@@ -116,9 +116,12 @@ class Decrypt(DecryptBase):
     q_u64 = np.array(moduli, dtype=np.uint64).reshape(1, -1)
 
     # m = c0 + c1*s
-    res = (c0 + (c1 * s) % q_u64) % q_u64
+    res = (c0 + (c1.astype(np.uint64) * s.astype(np.uint64)) % q_u64) % q_u64
+
+    # Apply INTT to convert from NTT domain to coefficient domain.
+    res_coeffs = ntt_cpu.intt_negacyclic_poly(res, moduli)
 
     return Plaintext(
-        jnp.array(res, dtype=jnp.uint32),
+        jnp.array(res_coeffs, dtype=jnp.uint32),
         jnp.array(ciphertext.moduli, dtype=jnp.uint32),
     )
