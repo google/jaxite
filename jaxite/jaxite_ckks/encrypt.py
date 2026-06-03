@@ -21,10 +21,6 @@ class EncryptBase(ABC):
   """Abstract base class for encryption kernels."""
 
   @abstractmethod
-  def precompute_constants(self, public_key: PublicKey):
-    """Precomputes constants for encryption."""
-
-  @abstractmethod
   def encrypt(
       self,
       plaintext: Plaintext,
@@ -37,10 +33,6 @@ class DecryptBase(ABC):
   """Abstract base class for decryption kernels."""
 
   @abstractmethod
-  def precompute_constants(self, secret_key: SecretKey):
-    """Precomputes constants for decryption."""
-
-  @abstractmethod
   def decrypt(self, ciphertext: Ciphertext) -> Plaintext:
     """Decrypts a CKKS plaintext."""
 
@@ -48,10 +40,7 @@ class DecryptBase(ABC):
 class Encrypt(EncryptBase):
   """Kernel for CKKS encryption."""
 
-  def __init__(self):
-    self.public_key = None
-
-  def precompute_constants(self, public_key: PublicKey):
+  def __init__(self, public_key: PublicKey):
     self.public_key = public_key
 
   def encrypt(
@@ -59,8 +48,6 @@ class Encrypt(EncryptBase):
       plaintext: Plaintext,
       random_source: random.RandomSource | None = None,
   ) -> Ciphertext:
-    if self.public_key is None:
-      raise ValueError("Public key must be set via precompute_constants first.")
 
     random_source = random_source or random.SecureRandomSource()
 
@@ -98,15 +85,10 @@ class Encrypt(EncryptBase):
 class Decrypt(DecryptBase):
   """Kernel for CKKS decryption."""
 
-  def __init__(self):
-    self.secret_key = None
-
-  def precompute_constants(self, secret_key: SecretKey):
+  def __init__(self, secret_key: SecretKey):
     self.secret_key = secret_key
 
   def decrypt(self, ciphertext: Ciphertext) -> Plaintext:
-    if self.secret_key is None:
-      raise ValueError("Secret key must be set via precompute_constants first.")
 
     moduli = ciphertext.moduli.tolist()
     c0 = np.array(ciphertext.data[0])

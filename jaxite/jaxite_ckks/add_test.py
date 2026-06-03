@@ -134,15 +134,13 @@ class AddTest(parameterized.TestCase):
         complex(3.5, 3.5),
     ]
 
-    encoder = encode.Encode()
-    encoder.precompute_constants(degree, moduli, scale)
+    encoder = encode.Encode(degree, moduli, scale)
     pt1 = encoder.encode(slots1)
     pt2 = encoder.encode(slots2)
 
     pk, sk = key_gen.keygen(degree, moduli)
 
-    encryptor = encrypt.Encrypt()
-    encryptor.precompute_constants(pk)
+    encryptor = encrypt.Encrypt(pk)
     ct1 = encryptor.encrypt(pt1)
     ct2 = encryptor.encrypt(pt2)
 
@@ -152,12 +150,10 @@ class AddTest(parameterized.TestCase):
     ct_add_data = add_kernel.add(ct1.data, ct2.data)
     ct_add = types.Ciphertext(data=ct_add_data, moduli=ct1.moduli)
 
-    decryptor = encrypt.Decrypt()
-    decryptor.precompute_constants(sk)
+    decryptor = encrypt.Decrypt(sk)
     pt_dec = decryptor.decrypt(ct_add)
 
-    decoder = encode.Decode()
-    decoder.precompute_constants(scale, len(slots1))
+    decoder = encode.Decode(scale, len(slots1))
     decoded = decoder.decode(pt_dec)
 
     expected_slots = [s1 + s2 for s1, s2 in zip(slots1, slots2)]

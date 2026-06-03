@@ -109,20 +109,12 @@ class EncodeBase(ABC):
   """Abstract base class for encoding kernels."""
 
   @abstractmethod
-  def precompute_constants(self, degree: int, moduli: list[int], scale: float):
-    """Precomputes constants for encoding."""
-
-  @abstractmethod
   def encode(self, slots: list[complex]) -> Plaintext:
     """Encode a cleartext vector into an RNS-CKKS plaintext."""
 
 
 class DecodeBase(ABC):
   """Abstract base class for decoding kernels."""
-
-  @abstractmethod
-  def precompute_constants(self, scale: float, num_slots: int):
-    """Precomputes constants for decoding."""
 
   @abstractmethod
   def decode(
@@ -134,12 +126,7 @@ class DecodeBase(ABC):
 class Encode(EncodeBase):
   """Kernel for CKKS encoding."""
 
-  def __init__(self):
-    self.degree = None
-    self.moduli = None
-    self.scale = None
-
-  def precompute_constants(self, degree: int, moduli: list[int], scale: float):
+  def __init__(self, degree: int, moduli: list[int], scale: float):
     self.degree = degree
     self.moduli = moduli
     self.scale = scale
@@ -155,11 +142,6 @@ class Encode(EncodeBase):
 
     Returns: a Plaintext encoding the given slots.
     """
-    if self.degree is None or self.moduli is None or self.scale is None:
-      raise ValueError(
-          "degree, moduli, and scale must be set via precompute_constants"
-          " first."
-      )
 
     nh = self.degree // 2
     y = np.array(slots, dtype=complex)
@@ -180,11 +162,7 @@ class Encode(EncodeBase):
 class Decode(DecodeBase):
   """Kernel for CKKS decoding."""
 
-  def __init__(self):
-    self.scale = None
-    self.num_slots = None
-
-  def precompute_constants(self, scale: float, num_slots: int):
+  def __init__(self, scale: float, num_slots: int):
     self.scale = scale
     self.num_slots = num_slots
 

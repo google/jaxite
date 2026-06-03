@@ -57,8 +57,7 @@ class CrossEquivalenceTest(absltest.TestCase):
         dtype=np.uint32,
     )
 
-    encoder = encode.Encode()
-    encoder.precompute_constants(degree, moduli, scale)
+    encoder = encode.Encode(degree, moduli, scale)
     pt = encoder.encode(slots)
 
     np.testing.assert_array_equal(np.array(pt.data), expected_data)
@@ -113,8 +112,7 @@ class CrossEquivalenceTest(absltest.TestCase):
     pk_data = np.ones((2, degree, len(moduli)), dtype=np.uint32)
     pk = types.PublicKey(data=pk_data, moduli=np.array(moduli, dtype=np.uint32))
 
-    encryptor = encrypt.Encrypt()
-    encryptor.precompute_constants(pk)
+    encryptor = encrypt.Encrypt(pk)
     ct = encryptor.encrypt(pt, random_source=random_source)
 
     expected_c0 = np.array(
@@ -240,8 +238,7 @@ class CrossEquivalenceTest(absltest.TestCase):
         moduli=jnp.array(moduli, dtype=jnp.uint32),
     )
 
-    decryptor = encrypt.Decrypt()
-    decryptor.precompute_constants(sk)
+    decryptor = encrypt.Decrypt(sk)
     pt = decryptor.decrypt(ct)
 
     np.testing.assert_array_equal(np.array(pt.data), expected_result)
@@ -262,8 +259,7 @@ class CrossEquivalenceTest(absltest.TestCase):
         complex(5, 0),
     ]
 
-    encoder = encode.Encode()
-    encoder.precompute_constants(degree, moduli, scale)
+    encoder = encode.Encode(degree, moduli, scale)
     pt = encoder.encode(slots)
 
     class MockRandomSource(random.RandomSource):
@@ -282,8 +278,7 @@ class CrossEquivalenceTest(absltest.TestCase):
     pk_data = np.ones((2, degree, len(moduli)), dtype=np.uint64)
     pk = types.PublicKey(data=pk_data, moduli=np.array(moduli, dtype=np.uint64))
 
-    encryptor = encrypt.Encrypt()
-    encryptor.precompute_constants(pk)
+    encryptor = encrypt.Encrypt(pk)
     ct = encryptor.encrypt(pt, random_source=random_source)
 
     expected_c0 = np.array(
