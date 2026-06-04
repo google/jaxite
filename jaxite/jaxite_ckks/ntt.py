@@ -86,6 +86,20 @@ class NTTBarrettConstants:
   def __hash__(self):
     return id(self)
 
+  def slice_moduli(self, slice_obj):
+    return NTTBarrettConstants(
+        ntt_bat_tf_step1=self.ntt_bat_tf_step1[..., slice_obj],
+        ntt_tf_step2=self.ntt_tf_step2[..., slice_obj],
+        ntt_bat_tf_step3=self.ntt_bat_tf_step3[..., slice_obj],
+        intt_bat_tf_step1=self.intt_bat_tf_step1[..., slice_obj],
+        intt_tf_step2=self.intt_tf_step2[..., slice_obj],
+        intt_bat_tf_step3=self.intt_bat_tf_step3[..., slice_obj],
+        barrett_constants=self.barrett_constants.slice(slice_obj),
+        r=self.r,
+        c=self.c,
+        moduli=self.moduli[slice_obj],
+    )
+
 
 def _matmul_bat_einsum(
     lhs: jax.Array, rhs: jax.Array, subscripts: str
@@ -266,7 +280,6 @@ class NTTBarrett(NTTBase):
         moduli=jnp.array(moduli, dtype=jnp.uint32),
     )
 
-  @jax.jit
   def ntt(self, v: jnp.ndarray) -> jnp.ndarray:
     """Performs the forward NTT using BAT optimization."""
     # Step 1: Sum over rows. lhs: "...rcmq", rhs: "zqrpm"
@@ -292,7 +305,6 @@ class NTTBarrett(NTTBase):
     )
     return barrett.modular_reduction(res3, self.constants.barrett_constants)
 
-  @jax.jit
   def intt(self, v: jnp.ndarray) -> jnp.ndarray:
     """Performs the inverse NTT using BAT optimization."""
     # Step 1: Sum over cols. lhs: "...rcmq", rhs: "cqlpm"

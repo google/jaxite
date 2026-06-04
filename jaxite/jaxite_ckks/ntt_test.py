@@ -163,6 +163,60 @@ class NTTTest(parameterized.TestCase):
 
     np.testing.assert_allclose(ntt_sum, sum_ntt.astype(jnp.uint32))
 
+  def test_ntt_constants_slicing(self):
+    r, c = 4, 4
+    moduli = list(TEST_PRIMES)
+
+    ntt_kernel_full = ntt.NTTBarrett()
+    ntt_kernel_full.precompute_constants(moduli, r, c)
+
+    # Slice to get only the first two moduli
+    sliced_constants = ntt_kernel_full.constants.slice_moduli(slice(0, 2))
+
+    ntt_kernel_part = ntt.NTTBarrett()
+    ntt_kernel_part.precompute_constants(moduli[:2], r, c)
+
+    part_constants = ntt_kernel_part.constants
+
+    # Compare fields
+    np.testing.assert_array_equal(
+        sliced_constants.ntt_bat_tf_step1, part_constants.ntt_bat_tf_step1
+    )
+    np.testing.assert_array_equal(
+        sliced_constants.ntt_tf_step2, part_constants.ntt_tf_step2
+    )
+    np.testing.assert_array_equal(
+        sliced_constants.ntt_bat_tf_step3, part_constants.ntt_bat_tf_step3
+    )
+    np.testing.assert_array_equal(
+        sliced_constants.intt_bat_tf_step1, part_constants.intt_bat_tf_step1
+    )
+    np.testing.assert_array_equal(
+        sliced_constants.intt_tf_step2, part_constants.intt_tf_step2
+    )
+    np.testing.assert_array_equal(
+        sliced_constants.intt_bat_tf_step3, part_constants.intt_bat_tf_step3
+    )
+    np.testing.assert_array_equal(
+        sliced_constants.moduli, part_constants.moduli
+    )
+
+    # Compare barrett constants
+    np.testing.assert_array_equal(
+        sliced_constants.barrett_constants.m, part_constants.barrett_constants.m
+    )
+    np.testing.assert_array_equal(
+        sliced_constants.barrett_constants.moduli,
+        part_constants.barrett_constants.moduli,
+    )
+    np.testing.assert_array_equal(
+        sliced_constants.barrett_constants.w, part_constants.barrett_constants.w
+    )
+    np.testing.assert_array_equal(
+        sliced_constants.barrett_constants.s_w,
+        part_constants.barrett_constants.s_w,
+    )
+
 
 if __name__ == "__main__":
   absltest.main()

@@ -30,6 +30,14 @@ class BarrettConstants:
   def tree_unflatten(cls, _, children):
     return cls(*children)
 
+  def slice(self, slice_obj: slice):
+    return BarrettConstants(
+        m=self.m[slice_obj],
+        moduli=self.moduli[slice_obj],
+        w=self.w[slice_obj],
+        s_w=self.s_w[slice_obj],
+    )
+
 
 def precompute_barrett_constants(
     moduli: list[int] | int,

@@ -180,11 +180,15 @@ class Decode(DecodeBase):
       poly = ntt_cpu.intt_negacyclic_poly(np.array(plaintext.data), moduli)
     else:
       poly = np.array(plaintext.data)
-    combined = np.array(rns_utils.reconstruct_crt(poly.T.tolist(), moduli))
+    combined = rns_utils.reconstruct_crt(poly.T.tolist(), moduli)
     modulus = math.prod(moduli)
     half_modulus = modulus // 2
-    modded = np.where(combined > half_modulus, combined - modulus, combined)
-    coeffs = modded / self.scale
+    # Use a list comprehension to avoid NumPy OverflowError when handling
+    # large integers.
+    modded_divided = [
+        (c - modulus if c > half_modulus else c) / self.scale for c in combined
+    ]
+    coeffs = np.array(modded_divided)
     nh = degree // 2
     y = coeffs[:nh] + 1j * coeffs[nh:]
     fft_special(y, degree * 2)
