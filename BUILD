@@ -613,3 +613,16 @@ py_test(
         "@jaxite_deps//numpy",
     ],
 )
+
+py_test(
+    name = "key_switching_key_test",
+    size = "small",
+    srcs = ["jaxite/jaxite_ckks/key_switching_key_test.py"],
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)

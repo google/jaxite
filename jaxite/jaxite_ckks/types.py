@@ -51,3 +51,12 @@ class SecretKey:
 
   data: np.ndarray  # Shape (degree, num_moduli)
   moduli: np.ndarray
+
+
+@dataclasses.dataclass(frozen=True)
+class EvaluationKeys:
+  """CKKS Evaluation Keys."""
+
+  a: jax.Array
+  b: jax.Array
+  moduli: jax.Array
