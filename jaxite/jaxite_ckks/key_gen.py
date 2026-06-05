@@ -3,6 +3,7 @@
 import math
 
 import jax.numpy as jnp
+from jaxite.jaxite_ckks import mul
 from jaxite.jaxite_ckks import ntt_cpu
 from jaxite.jaxite_ckks import random
 from jaxite.jaxite_ckks import types

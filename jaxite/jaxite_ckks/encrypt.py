@@ -54,6 +54,13 @@ class Encrypt(EncryptBase):
     degree = plaintext.data.shape[0]
     moduli = plaintext.moduli.tolist()
 
+    if not np.array_equal(
+        plaintext.moduli, self.public_key.moduli[: len(plaintext.moduli)]
+    ):
+      raise ValueError(
+          "Plaintext moduli must match the prefix of public key moduli"
+      )
+
     v = random_source.gen_ternary_poly(degree, moduli)
     e0 = random_source.gen_gaussian_poly(degree, moduli)
     e1 = random_source.gen_gaussian_poly(degree, moduli)
@@ -63,8 +70,8 @@ class Encrypt(EncryptBase):
     e1_ntt = ntt_cpu.ntt_negacyclic_poly(np.array(e1), moduli)
 
     q_u64 = np.array(moduli, dtype=np.uint64).reshape(1, -1)
-    pk0 = np.array(self.public_key.data[0])
-    pk1 = np.array(self.public_key.data[1])
+    pk0 = np.array(self.public_key.data[0])[..., : len(moduli)]
+    pk1 = np.array(self.public_key.data[1])[..., : len(moduli)]
 
     # c0 = v*pk0 + e0 + m
     prod0 = (v_ntt * pk0) % q_u64
@@ -78,7 +85,7 @@ class Encrypt(EncryptBase):
 
     return Ciphertext(
         jnp.array(c_data, dtype=jnp.uint32),
-        jnp.array(self.public_key.moduli, dtype=jnp.uint32),
+        jnp.array(plaintext.moduli, dtype=jnp.uint32),
     )
 
 
@@ -91,6 +98,12 @@ class Decrypt(DecryptBase):
   def decrypt(self, ciphertext: Ciphertext) -> Plaintext:
 
     moduli = ciphertext.moduli.tolist()
+    if not np.array_equal(
+        ciphertext.moduli, self.secret_key.moduli[: len(ciphertext.moduli)]
+    ):
+      raise ValueError(
+          "Ciphertext moduli must match the prefix of secret key moduli"
+      )
     c0 = np.array(ciphertext.data[0])
     c1 = np.array(ciphertext.data[1])
     s = np.array(self.secret_key.data)[..., : len(moduli)]
