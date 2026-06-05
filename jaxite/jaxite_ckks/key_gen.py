@@ -3,6 +3,8 @@
 import math
 
 import jax.numpy as jnp
+from jaxite.jaxite_ckks import encode
+from jaxite.jaxite_ckks import encrypt
 from jaxite.jaxite_ckks import ntt_cpu
 from jaxite.jaxite_ckks import random
 from jaxite.jaxite_ckks import types
@@ -41,8 +43,6 @@ def keygen(
   return PublicKey(pk_data, np.array(moduli, dtype=np.uint64)), SecretKey(
       s_ntt, np.array(moduli, dtype=np.uint64)
   )
-
-
 def extend_secret_key(
     secret_key: SecretKey,
     target_moduli: list[int],
@@ -186,3 +186,31 @@ def gen_evaluation_key(
       dnum=dnum,
       random_source=random_source,
   )
+
+
+def gen_cm_keys(
+    indices: list[int], public_key: PublicKey, scale: float
+) -> np.ndarray:
+  """Generates column keys."""
+  degree = public_key.data.shape[1]
+  num_slots = degree // 2
+  all_zeroes = [complex(0)] * num_slots
+  all_ones = [complex(1)] * num_slots
+
+  encoder = encode.Encode(degree, public_key.moduli.tolist(), scale)
+  encryptor = encrypt.Encrypt(public_key)
+
+  plain_0 = encoder.encode(all_zeroes)
+  plain_1 = encoder.encode(all_ones)
+
+  n = len(indices)
+  cm_keys = np.empty((n, n), dtype=object)
+
+  for i in range(n):
+    for j in range(n):
+      if i == j:
+        cm_keys[i, j] = encryptor.encrypt(plain_1)
+      else:
+        cm_keys[i, j] = encryptor.encrypt(plain_0)
+
+  return cm_keys
