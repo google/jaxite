@@ -626,3 +626,16 @@ py_test(
         "@jaxite_deps//numpy",
     ],
 )
+
+py_test(
+    name = "key_gen_test",
+    size = "small",
+    srcs = ["jaxite/jaxite_ckks/key_gen_test.py"],
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)

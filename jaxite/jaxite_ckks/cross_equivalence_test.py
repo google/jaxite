@@ -107,6 +107,9 @@ class CrossEquivalenceTest(absltest.TestCase):
       def gen_uniform_poly(self, d, m):
         return np.zeros((d, len(m)))
 
+      def gen_sparse_binary(self, d, w, m):
+        return np.zeros((d, len(m)))
+
     random_source = MockRandomSource()
 
     pk_data = np.ones((2, degree, len(moduli)), dtype=np.uint32)
@@ -271,6 +274,9 @@ class CrossEquivalenceTest(absltest.TestCase):
         return np.ones((d, len(m)), dtype=np.uint64)
 
       def gen_uniform_poly(self, d, m):
+        return np.zeros((d, len(m)))
+
+      def gen_sparse_binary(self, d, w, m):
         return np.zeros((d, len(m)))
 
     random_source = MockRandomSource()

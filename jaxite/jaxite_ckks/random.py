@@ -22,6 +22,12 @@ class RandomSource(abc.ABC):
   def gen_uniform_poly(self, degree: int, moduli: list[int]) -> np.ndarray:
     pass
 
+  @abc.abstractmethod
+  def gen_sparse_binary(
+      self, degree: int, weight: int, moduli: list[int]
+  ) -> np.ndarray:
+    pass
+
 
 class SecureRandomSource(RandomSource):
   """Random generation utilities for CKKS."""
@@ -50,6 +56,14 @@ class SecureRandomSource(RandomSource):
     for q in moduli:
       res.append([self.rng.randrange(0, q) for _ in range(degree)])
     return np.array(res, dtype=np.uint64).T
+
+  def gen_sparse_binary(
+      self, degree: int, weight: int, moduli: list[int]
+  ) -> np.ndarray:
+    v = np.zeros(degree, dtype=np.uint64)
+    indices = self.rng.sample(range(degree), k=weight)
+    v[indices] = 1
+    return np.column_stack([v] * len(moduli))
 
 
 class ZeroNoiseRandomSource(SecureRandomSource):

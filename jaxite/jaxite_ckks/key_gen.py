@@ -16,11 +16,16 @@ def keygen(
     degree: int,
     moduli: list[int],
     random_source: random.RandomSource | None = None,
+    hamming_weight: int | None = None,
 ) -> tuple[PublicKey, SecretKey]:
   """Generate a public, secret key pair."""
   random_source = random_source or random.SecureRandomSource()
 
-  s = random_source.gen_ternary_poly(degree, moduli)
+  if hamming_weight is not None:
+    s = random_source.gen_sparse_binary(degree, hamming_weight, moduli)
+  else:
+    s = random_source.gen_ternary_poly(degree, moduli)
+
   a = random_source.gen_uniform_poly(degree, moduli)
   e = random_source.gen_gaussian_poly(degree, moduli)
 

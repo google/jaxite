@@ -55,6 +55,44 @@ class EncryptTest(absltest.TestCase):
       self.assertAlmostEqual(s.imag, d.imag, delta=0.2)
 
   @hypothesis.settings(max_examples=25, deadline=None)
+  @hypothesis.given(
+      st.lists(
+          st.complex_numbers(min_magnitude=0, max_magnitude=10),
+          min_size=4,
+          max_size=4,
+      ),
+      st.floats(min_value=2**10, max_value=2**15),
+      st.integers(min_value=0, max_value=2**32 - 1),
+      st.integers(min_value=1, max_value=8),
+  )
+  def test_encrypt_decrypt_loop_with_hamming_weight(
+      self, slots, scale, seed, hw
+  ):
+    degree = 8
+    moduli = [335552513, 335546369]
+    random_source = random.TestRandomSource(seed)
+
+    pk, sk = key_gen.keygen(
+        degree, moduli, hamming_weight=hw, random_source=random_source
+    )
+
+    encoder = encode.Encode(degree, moduli, scale)
+    pt = encoder.encode(slots)
+
+    encryptor = encrypt.Encrypt(pk)
+    ct = encryptor.encrypt(pt, random_source=random_source)
+
+    decryptor = encrypt.Decrypt(sk)
+    decrypted_pt = decryptor.decrypt(ct)
+
+    decoder = encode.Decode(scale, len(slots))
+    decoded = decoder.decode(decrypted_pt)
+
+    for s, d in zip(slots, decoded):
+      self.assertAlmostEqual(s.real, d.real, delta=0.2)
+      self.assertAlmostEqual(s.imag, d.imag, delta=0.2)
+
+  @hypothesis.settings(max_examples=25, deadline=None)
   @hypothesis.given(st.integers(min_value=0, max_value=2**32 - 1))
   def test_exact_encrypt_decrypt(self, seed):
     # This tests encrypt/decrypt without cryptographic noise, which allows for
