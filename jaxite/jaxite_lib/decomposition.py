@@ -196,12 +196,9 @@ def signed_decomposition(
     # and carry propagation
     carry_mask = unsigned_digit & base_over_2_threshold
 
-    # a tricky way to optionally shift by B. The result is re-cast as a uint32,
-    # but this is OK because future arithmetic operations as uint32 will wrap
-    # around and treat 2**32-1 properly as -1.
-    signed_digit = jnp.uint32(
-        jnp.int32(unsigned_digit) - jnp.int32(carry_mask << 1)
-    )
+    # Keep this arithmetic in uint32 so subtraction underflow wraps naturally.
+    # This avoids strict negative-to-uint casts (e.g. -1 -> uint32) in NumPy 2.x.
+    signed_digit = unsigned_digit - (carry_mask << 1)
 
     # convert the carry mask to a 0/1 bit to carry to the next digit
     carry = carry_mask >> (base_log - 1)
