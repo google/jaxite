@@ -5,10 +5,10 @@ from typing import Callable
 
 import jax.numpy as jnp
 from jaxite.jaxite_bool import bool_encoding
-from jaxite.jaxite_lib import parameters
-from jaxite.jaxite_lib import rlwe
-from jaxite.jaxite_lib import test_polynomial
-from jaxite.jaxite_lib import types
+from jaxite.jaxite_cggi import parameters
+from jaxite.jaxite_cggi import rlwe
+from jaxite.jaxite_cggi import test_polynomial
+from jaxite.jaxite_cggi import types
 
 
 class LookUpTable:

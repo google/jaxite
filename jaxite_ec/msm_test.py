@@ -29,25 +29,25 @@ TEST_PARAMS = [
     (
         "test_4_degree",
         os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])),
-            f"{script_dir}/jaxite_ec/test_case/t4/zprize_msm_curve_377_scalars_dim_4_seed_0.csv"
+            f"{script_dir}/test_case/t4/zprize_msm_curve_377_scalars_dim_4_seed_0.csv"
         ),
         os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])),
-            f"{script_dir}/jaxite_ec/test_case/t4/zprize_msm_curve_377_bases_dim_4_seed_0.csv"
+            f"{script_dir}/test_case/t4/zprize_msm_curve_377_bases_dim_4_seed_0.csv"
         ),
         os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])),
-            f"{script_dir}/jaxite_ec/test_case/t4/zprize_msm_curve_377_res_dim_4_seed_0.csv"
+            f"{script_dir}/test_case/t4/zprize_msm_curve_377_res_dim_4_seed_0.csv"
         ),
     ),
     (
         "test_1024_degree",
         os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])),
-            f"{script_dir}/jaxite_ec/test_case/t1024/zprize_msm_curve_377_scalars_dim_1024_seed_0.csv"
+            f"{script_dir}/test_case/t1024/zprize_msm_curve_377_scalars_dim_1024_seed_0.csv"
         ),
         os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])),
-            f"{script_dir}/jaxite_ec/test_case/t1024/zprize_msm_curve_377_bases_dim_1024_seed_0.csv"
+            f"{script_dir}/test_case/t1024/zprize_msm_curve_377_bases_dim_1024_seed_0.csv"
         ),
         os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])),
-            f"{script_dir}/jaxite_ec/test_case/t1024/zprize_msm_curve_377_res_dim_1024_seed_0.csv"
+            f"{script_dir}/test_case/t1024/zprize_msm_curve_377_res_dim_1024_seed_0.csv"
         ),
     ),
 ]

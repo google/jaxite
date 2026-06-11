@@ -6,16 +6,16 @@ from typing import Any, Callable, Optional
 
 import jax
 import jax.numpy as jnp
-from jaxite.jaxite_lib import decomposition
-from jaxite.jaxite_lib import key_switch
-from jaxite.jaxite_lib import lwe
-from jaxite.jaxite_lib import matrix_utils
-from jaxite.jaxite_lib import parameters
-from jaxite.jaxite_lib import polymul_kernel
-from jaxite.jaxite_lib import random_source
-from jaxite.jaxite_lib import rgsw
-from jaxite.jaxite_lib import rlwe
-from jaxite.jaxite_lib import types
+from jaxite.jaxite_cggi import decomposition
+from jaxite.jaxite_cggi import key_switch
+from jaxite.jaxite_cggi import lwe
+from jaxite.jaxite_cggi import matrix_utils
+from jaxite.jaxite_cggi import parameters
+from jaxite.jaxite_cggi import polymul_kernel
+from jaxite.jaxite_cggi import random_source
+from jaxite.jaxite_cggi import rgsw
+from jaxite.jaxite_cggi import rlwe
+from jaxite.jaxite_cggi import types
 
 GEN_BSK_NUM_BATCHES = 20
 NON_DIVISIBLE_BATCH_SIZE_WARNING = (
@@ -54,6 +54,8 @@ def gen_bootstrapping_key(
     decomposition_params: bit-decomposition parameters needed for RGSW
       encryption
     prg: the random source
+    use_bmmp: whether to use BMMP optimization
+    use_bat: whether to use Conv-Adapt-Conv BAT optimization
 
   Returns:
     A bootstrapping key.
@@ -248,6 +250,8 @@ def jit_bootstrap(
     bs_decomposition_params: the decomposition parameters used in the
       bootstrapping key.
     scheme_params: the scheme parameters, used to discretize the ciphertext.
+    bsk_use_bmmp: whether to use BMMP optimization
+    bsk_use_bat: whether to use Conv-Adapt-Conv BAT optimization
 
   Returns:
     An encryption of the same underlying message as `ciphertext`, but with

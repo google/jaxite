@@ -3,8 +3,8 @@
 import hypothesis
 from hypothesis import strategies
 from jax import numpy as jnp
-from jaxite.jaxite_lib import encoding
-from jaxite.jaxite_lib import types
+from jaxite.jaxite_cggi import encoding
+from jaxite.jaxite_cggi import types
 from absl.testing import absltest
 from absl.testing import parameterized
 

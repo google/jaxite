@@ -1,13 +1,14 @@
-"""Tests for key_switch."""
+"""Unit tests for the key_switch module verifying correctness of underlying cryptographic operations."""
+
 import jax.numpy as jnp
-from jaxite.jaxite_lib import decomposition
-from jaxite.jaxite_lib import encoding
-from jaxite.jaxite_lib import key_switch
-from jaxite.jaxite_lib import lwe
-from jaxite.jaxite_lib import parameters
-from jaxite.jaxite_lib import random_source
-from jaxite.jaxite_lib import rlwe
-from jaxite.jaxite_lib import test_utils
+from jaxite.jaxite_cggi import decomposition
+from jaxite.jaxite_cggi import encoding
+from jaxite.jaxite_cggi import key_switch
+from jaxite.jaxite_cggi import lwe
+from jaxite.jaxite_cggi import parameters
+from jaxite.jaxite_cggi import random_source
+from jaxite.jaxite_cggi import rlwe
+from jaxite.jaxite_cggi import test_utils
 from absl.testing import absltest
 from absl.testing import parameterized
 

@@ -1,6 +1,6 @@
 """A module to store hard-coded encoding information about jaxite_bool."""
-from jaxite.jaxite_lib import encoding
-from jaxite.jaxite_lib import types
+from jaxite.jaxite_cggi import encoding
+from jaxite.jaxite_cggi import types
 
 ENCODING_PARAMS = encoding.EncodingParameters(
     # leaves 32 - 3 - 1 bits for noise

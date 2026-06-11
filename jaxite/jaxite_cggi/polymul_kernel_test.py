@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from jaxite.jaxite_lib import polymul_kernel
+from jaxite.jaxite_cggi import polymul_kernel
 import numpy as np
 from absl.testing import absltest
 from absl.testing import parameterized

@@ -5,9 +5,8 @@ import jax
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
 import jax.numpy as jnp
-from jaxite.jaxite_lib import jax_helpers
-from jaxite.jaxite_lib import matrix_utils
-
+from jaxite.jaxite_cggi import jax_helpers
+from jaxite.jaxite_cggi import matrix_utils
 
 # This fallback serves as a reference implementation, but does not lower well on
 # TPU due to the semantics of the vmap.
@@ -31,6 +30,7 @@ fallback_i32_matmul = jax.vmap(
 
 
 def _i32_matmul_unreduced(lhs, rhs):
+  """Performs an unreduced 32-bit integer matrix multiplication."""
   lax = jax.lax
   m, k, n = lhs.shape[0], lhs.shape[1], rhs.shape[1]
   lhs_i8 = jnp.broadcast_to(lhs, (4, *lhs.shape))
@@ -82,7 +82,7 @@ def bat_matmul(lhs: jax.Array, y: jax.Array):
   return jnp.sum(i8_products << shift_factors, axis=(0, 3,)).astype(jnp.uint32)
 
 
-def _i32_matmul_unreduced_CGGI(lhs, rhs):
+def _i32_matmul_unreduced_cggi(lhs, rhs):
   """Performs a 32-bit integer matrix multiplication with CGGI optimization.
 
   This function is an optimized version of i32_matmul_unreduced for decomposed
@@ -96,7 +96,7 @@ def _i32_matmul_unreduced_CGGI(lhs, rhs):
     The result of the matrix multiplication as a jnp.ndarray.
   """
   lax = jax.lax
-  m, k, n = lhs.shape[0], lhs.shape[1], rhs.shape[1]
+  m, _, n = lhs.shape[0], lhs.shape[1], rhs.shape[1]
 
   # Optimized byte extraction for the CGGI trick. This splits the 32-bit
   # integers in the `lhs` matrix into their 8-bit components.
@@ -140,6 +140,7 @@ def _i32_matmul_unreduced_CGGI(lhs, rhs):
 def _decomposed_vector_matrix_polymul(
     poly_vec1: jnp.ndarray, poly_mat2: jnp.ndarray
 ):
+  """Computes decomposed vector-matrix polynomial multiplication."""
   # b is the product of the RLWE dimension (e.g., 3) and the number of
   # decomposition levels in the decomposition parameters (e.g., 6).
   # n is the degree of the RLWE polynomials.
@@ -165,7 +166,7 @@ def _decomposed_vector_matrix_polymul(
   )
   poly_mat2 = jnp.concatenate((poly_mat2, poly_mat2), axis=(1))
   if n % 128 != 0:
-    raise ValueError(f'Input size {n} is not a multiple of 128')
+    raise ValueError(f"Input size {n} is not a multiple of 128")
 
   def vec_mat_polymul_kernel(vec_ref, mat_ref, out_ref):
     """Pallas kernel for polynomial multiplication."""
@@ -191,7 +192,7 @@ def _decomposed_vector_matrix_polymul(
         chunk_row_indices = chunk_row_indices + 128
       vec_toeplitz = jax.lax.concatenate(toeplitz_chunks, dimension=0)
 
-      result = _i32_matmul_unreduced_CGGI(mat_ref[b_i, ...], vec_toeplitz)
+      result = _i32_matmul_unreduced_cggi(mat_ref[b_i, ...], vec_toeplitz)
       out_ref[b_i, ...] = result
 
   return jnp.sum(
@@ -223,6 +224,7 @@ def negacyclic_vector_matrix_polymul(
   Args:
     vec: a vector of polynomials
     matrix: a matrix of polynomials
+    decomposition_log_base: base logarithm for decomposition
 
   Returns:
     the vector-matrix product of the polynomials
@@ -279,7 +281,7 @@ def negacyclic_vector_matrix_polymul_bat(
     assert poly_mat2.dtype == jnp.uint8
     b, n = poly_vec1.shape
     # m is the number of polynomials in the RLWE dimension (e.g., 3)
-    b2, m, n2, p, q = poly_mat2.shape
+    b2, _, n2, _, _ = poly_mat2.shape
     assert b == b2 and n == n2
     # (18, 3, 512)
     # (18,512) -> u32(18, 512, 512)

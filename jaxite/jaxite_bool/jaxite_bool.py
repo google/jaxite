@@ -7,14 +7,14 @@ import jax
 import jax.numpy as jnp
 from jaxite.jaxite_bool import bool_encoding
 from jaxite.jaxite_bool import bool_params
-from jaxite.jaxite_lib import bootstrap
-from jaxite.jaxite_lib import encoding
-from jaxite.jaxite_lib import key_switch
-from jaxite.jaxite_lib import lwe
-from jaxite.jaxite_lib import random_source
-from jaxite.jaxite_lib import rgsw
-from jaxite.jaxite_lib import rlwe
-from jaxite.jaxite_lib import types
+from jaxite.jaxite_cggi import bootstrap
+from jaxite.jaxite_cggi import encoding
+from jaxite.jaxite_cggi import key_switch
+from jaxite.jaxite_cggi import lwe
+from jaxite.jaxite_cggi import random_source
+from jaxite.jaxite_cggi import rgsw
+from jaxite.jaxite_cggi import rlwe
+from jaxite.jaxite_cggi import types
 
 Parameters = bool_params.Parameters
 ENCODING_PARAMS = bool_encoding.ENCODING_PARAMS

@@ -5,13 +5,13 @@ import functools
 
 import jax
 import jax.numpy as jnp
-from jaxite.jaxite_lib import decomposition
-from jaxite.jaxite_lib import encoding
-from jaxite.jaxite_lib import jax_helpers
-from jaxite.jaxite_lib import matrix_utils
-from jaxite.jaxite_lib import parameters
-from jaxite.jaxite_lib import random_source
-from jaxite.jaxite_lib import rlwe
+from jaxite.jaxite_cggi import decomposition
+from jaxite.jaxite_cggi import encoding
+from jaxite.jaxite_cggi import jax_helpers
+from jaxite.jaxite_cggi import matrix_utils
+from jaxite.jaxite_cggi import parameters
+from jaxite.jaxite_cggi import random_source
+from jaxite.jaxite_cggi import rlwe
 
 
 @dataclasses.dataclass
@@ -213,7 +213,6 @@ def jit_encrypt(
   #  - encrypt_block computes vmaps each row computation for a block.
   #  - the final vmap maps across blocks.
 
-  @jax.jit
   def encrypt_and_modify_one_row(
       ai_samples,
       error_sample,
@@ -242,7 +241,6 @@ def jit_encrypt(
     modified_poly = modified_poly.at[0].set(modfied_first_coeff)
     return rlwe_zero.at[block].set(modified_poly)
 
-  @jax.jit
   def encrypt_block(ai_samples, error_samples, block, plaintext_message):
     return jax.vmap(
         encrypt_and_modify_one_row,
