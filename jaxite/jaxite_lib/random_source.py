@@ -16,14 +16,15 @@ def _normalize_value(value: Any, dtype: jnp.dtype):
   """Normalize value to the correct bounds for dtype.
 
   If the dtype is unsigned, normalizes negative values into the unsigned
-  range. NumPy deprecated out-of-bound conversions.
+  range.
 
-  Args:
-    value: A scalar value to normalize.
-    dtype: The data type of the JAX ndarray to generate.
+  NumPy deprecated out-of-bound conversions.
+    Args:
+      value: A scalar value to normalize
+      dtype: The data type of the JAX ndarray to generate
 
-  Returns:
-    A normalized scalar value.
+    Returns:
+      A noramlized scalar value.
   """
   is_unsigned = jnp.issubdtype(dtype, jnp.unsignedinteger)
   normalized = value % (jnp.iinfo(dtype).max + 1) if is_unsigned else value

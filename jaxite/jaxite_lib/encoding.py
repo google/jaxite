@@ -4,14 +4,14 @@ import dataclasses
 from typing import Union
 
 import jax.numpy as jnp
-from jaxite.jaxite_cggi import types
+from jaxite.jaxite_lib import types
 
 
 @dataclasses.dataclass
 class EncodingParameters:
   """The parameters for encoding a cleartext for use in TFHE.
 
-  See jaxite.jaxite_cggi.encoding.encode for the structure of the
+  See g.p.p.fhe.jaxite.jaxite_lib.encoding.encode for the structure of the
   encoding.
   """
 
@@ -82,7 +82,6 @@ def encode(
   Args:
     message: the cleartext message.
     params: the parameters of the encoding.
-    test_polynomial_encoding: whether to encode for test polynomial.
 
   Returns:
     The encoded message or list of messages.
@@ -106,7 +105,6 @@ def encode(
     )
 
   return message << dtype(params.error_bit_length)
-
 
 def decode_without_removing_padding(
     plaintext: types.LwePlaintext, params: EncodingParameters

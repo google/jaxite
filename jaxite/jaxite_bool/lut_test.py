@@ -1,6 +1,6 @@
 from jaxite.jaxite_bool import bool_encoding
 from jaxite.jaxite_bool import lut
-from jaxite.jaxite_cggi import parameters
+from jaxite.jaxite_lib import parameters
 from absl.testing import absltest
 
 TEST_SCHEME_PARAMS = parameters.SchemeParameters(

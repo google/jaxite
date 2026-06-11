@@ -3,7 +3,7 @@
 import hypothesis
 from hypothesis import strategies
 import jax.numpy as jnp
-from jaxite.jaxite_cggi import decomposition
+from jaxite.jaxite_lib import decomposition
 import numpy as np
 from absl.testing import absltest  # fmt: skip
 

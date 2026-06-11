@@ -5,10 +5,10 @@ import functools
 
 import jax
 import jax.numpy as jnp
-from jaxite.jaxite_cggi import decomposition
-from jaxite.jaxite_cggi import lwe
-from jaxite.jaxite_cggi import random_source
-from jaxite.jaxite_cggi import types
+from jaxite.jaxite_lib import decomposition
+from jaxite.jaxite_lib import lwe
+from jaxite.jaxite_lib import random_source
+from jaxite.jaxite_lib import types
 
 
 @dataclasses.dataclass

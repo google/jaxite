@@ -1,12 +1,11 @@
-"""Unit tests for the test_polynomial module verifying correctness of underlying cryptographic operations."""
-
+"""Tests for test_polynomial."""
 import itertools
 import math
 
 import jax.numpy as jnp
-from jaxite.jaxite_cggi import encoding
-from jaxite.jaxite_cggi import parameters
-from jaxite.jaxite_cggi import test_polynomial
+from jaxite.jaxite_lib import encoding
+from jaxite.jaxite_lib import parameters
+from jaxite.jaxite_lib import test_polynomial
 import numpy as np
 
 from absl.testing import absltest

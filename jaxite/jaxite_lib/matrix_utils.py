@@ -2,13 +2,12 @@
 
 import concurrent.futures
 import functools
-import itertools
 
 import jax
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
 import jax.numpy as jnp
-from jaxite.jaxite_cggi import jax_helpers
+from jaxite.jaxite_lib import jax_helpers
 
 
 @jax.jit
@@ -349,9 +348,8 @@ def rechunkify_after_chunkwise_add(arr_a, chunkwidth):
 def smul_as_dense_gemv_bat(
     x, total_in_precision=32, chunkwidth=8, q=4294967291
 ):
-  """Implements Basis Align Transformation (BAT) for dense matrices.
-
-  This provides a major improvement to achieve dense matrix operations.
+  """This is the implementation of Basis Align Transformation (BAT); 
+  Major improvement to achieve dense matrix.
 
   Args:
     x: The input matrix.
@@ -371,10 +369,10 @@ def smul_as_dense_gemv_bat(
   x2   x1+r02 x0+r02  r02    # 2^16
   x3   x2+r03 x1+r03 x0+r03  # 2^24
   ]
-
+  
   Note: prefilled value are just examples.
-    We pick largest 2^32-1 to make sure that intermediate results might
-    exceed 32-bit precision range, and expose potential precision overflow.
+    We pick largest 2^32-1 to make sure that intermediate results might 
+    exceed 32-bit precision range, and expose potential precision overflow. 
   """
   dtype_double_length = jnp.uint16
   chunk_upper_bound = (1 << 8) - 1
@@ -606,7 +604,9 @@ def hpmatmul_offline_compile_bat(mat_a, q):
             )
         )
 
-    for future, (i, k) in zip(futures, itertools.product(range(m), range(n))):
+    for future, (i, k) in zip(
+        futures, [(i, k) for i in range(m) for k in range(n)]
+    ):
       left_mat = left_mat.at[i, k, :, :].set(future.result())
 
   return left_mat

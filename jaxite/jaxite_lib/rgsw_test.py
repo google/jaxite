@@ -1,11 +1,12 @@
+"""Tests for RGSW."""
 import hypothesis
 from hypothesis import strategies
 import jax.numpy as jnp
-from jaxite.jaxite_cggi import decomposition
-from jaxite.jaxite_cggi import parameters
-from jaxite.jaxite_cggi import random_source
-from jaxite.jaxite_cggi import rgsw
-from jaxite.jaxite_cggi import test_utils
+from jaxite.jaxite_lib import decomposition
+from jaxite.jaxite_lib import parameters
+from jaxite.jaxite_lib import random_source
+from jaxite.jaxite_lib import rgsw
+from jaxite.jaxite_lib import test_utils
 import numpy as np
 from absl.testing import absltest
 from absl.testing import parameterized

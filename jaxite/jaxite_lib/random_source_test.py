@@ -1,7 +1,7 @@
-"""Unit tests for the random_source module verifying correctness of underlying cryptographic operations."""
+"""Tests for random_source."""
 
 import jax.numpy as jnp
-from jaxite.jaxite_cggi import random_source
+from jaxite.jaxite_lib import random_source
 from absl.testing import absltest
 from absl.testing import parameterized
 

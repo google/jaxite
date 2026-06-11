@@ -3,7 +3,7 @@
 from jaxite.jaxite_bool import bool_encoding
 from jaxite.jaxite_bool import bool_params
 from jaxite.jaxite_bool import jaxite_bool
-from jaxite.jaxite_cggi import test_utils
+from jaxite.jaxite_lib import test_utils
 from absl.testing import absltest
 from absl.testing import parameterized
 

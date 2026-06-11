@@ -39,10 +39,10 @@ follows:
 """
 
 import jax.numpy as jnp
-from jaxite.jaxite_cggi import encoding
-from jaxite.jaxite_cggi import parameters
-from jaxite.jaxite_cggi import random_source
-from jaxite.jaxite_cggi import rlwe
+from jaxite.jaxite_lib import encoding
+from jaxite.jaxite_lib import parameters
+from jaxite.jaxite_lib import random_source
+from jaxite.jaxite_lib import rlwe
 
 
 def _pad_for_error(

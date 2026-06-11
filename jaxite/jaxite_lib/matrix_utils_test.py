@@ -1,13 +1,12 @@
-"""Unit tests for high-precision matrix multiplication and utility operations."""
-
+"""Tests for matrix_utils."""
 import decimal
 
 import hypothesis
 from hypothesis import strategies
 import jax
 import jax.numpy as jnp
-from jaxite.jaxite_cggi import jax_helpers
-from jaxite.jaxite_cggi import matrix_utils
+from jaxite.jaxite_lib import jax_helpers
+from jaxite.jaxite_lib import matrix_utils
 import numpy as np
 
 from absl.testing import absltest
@@ -316,7 +315,7 @@ def test_hpmatmul_bat():
       if mat_result_bat[i, j] != mat_reference_result[i][j]:
         print(
             f'mat_result_bat[{i}, {j}]={mat_result_bat[i, j]} not match'
-            f' mat_reference_result[{i}, {j}]={mat_reference_result[i][j]}'
+            f' mat_reference_result[{i}, {j}]={ mat_reference_result[i][j]}'
         )
 
   np.testing.assert_array_equal(mat_result_bat, mat_reference_result)
@@ -352,7 +351,7 @@ def test_hpmatmul_bat_full_precision():
       if mat_result_bat[i, j] != mat_reference_result[i][j]:
         print(
             f'mat_result_bat[{i}, {j}]={mat_result_bat[i, j]} not match'
-            f' mat_reference_result[{i}, {j}]={mat_reference_result[i][j]}'
+            f' mat_reference_result[{i}, {j}]={ mat_reference_result[i][j]}'
         )
 
   np.testing.assert_array_equal(mat_result_bat, mat_reference_result)

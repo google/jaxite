@@ -3,13 +3,13 @@ import functools
 
 from jaxite.jaxite_bool import bool_encoding
 from jaxite.jaxite_bool import lut as bool_lut
-from jaxite.jaxite_cggi import decomposition
-from jaxite.jaxite_cggi import encoding
-from jaxite.jaxite_cggi import lwe
-from jaxite.jaxite_cggi import parameters
-from jaxite.jaxite_cggi import random_source
-from jaxite.jaxite_cggi import rlwe
-from jaxite.jaxite_cggi import types
+from jaxite.jaxite_lib import decomposition
+from jaxite.jaxite_lib import encoding
+from jaxite.jaxite_lib import lwe
+from jaxite.jaxite_lib import parameters
+from jaxite.jaxite_lib import random_source
+from jaxite.jaxite_lib import rlwe
+from jaxite.jaxite_lib import types
 
 ENCODING_PARAMS = bool_encoding.ENCODING_PARAMS
 

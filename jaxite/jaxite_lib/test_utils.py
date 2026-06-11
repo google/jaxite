@@ -6,10 +6,10 @@ from typing import Optional
 
 import jax.numpy as jnp
 from jaxite.jaxite_bool import bool_params
-from jaxite.jaxite_cggi import encoding
-from jaxite.jaxite_cggi import lwe
-from jaxite.jaxite_cggi import parameters
-from jaxite.jaxite_cggi import rlwe
+from jaxite.jaxite_lib import encoding
+from jaxite.jaxite_lib import lwe
+from jaxite.jaxite_lib import parameters
+from jaxite.jaxite_lib import rlwe
 
 DEFAULT_ENCODING_PARAMS = encoding.EncodingParameters(
     total_bit_length=26, message_bit_length=14, padding_bit_length=2
