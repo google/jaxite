@@ -635,3 +635,18 @@ tpu_test(
         "@jaxite_deps//numpy",
     ],
 )
+
+tpu_test(
+    name = "brot_test",
+    size = "small",
+    srcs = ["jaxite/jaxite_ckks/brot_test.py"],
+    main = "jaxite/jaxite_ckks/brot_test.py",
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
