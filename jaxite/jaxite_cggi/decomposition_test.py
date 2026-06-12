@@ -165,6 +165,14 @@ class DecomposeTest(absltest.TestCase):
     )
     self.assertEqual(reconstructed, number)
 
+    def test_signed_decomposition_wraps_negative_digit(self):
+        # x=15 with base 16 yields a low signed digit of -1, represented as uint32.
+        decomp = decomposition.signed_decomposition(
+            15, base_log=4, num_levels=1, total_bit_length=4
+        )
+        np.testing.assert_array_equal(decomp, jnp.array([0xFFFFFFFF], dtype=jnp.uint32))
+
+
   def test_decompose_rlwe_ciphertext_vmap_compatibility(self):
     decomposition_params = decomposition.DecompositionParameters(
         log_base=4,
