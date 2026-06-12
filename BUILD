@@ -605,6 +605,22 @@ py_test(
 )
 
 tpu_test(
+    name = "mul_kernel_test",
+    size = "small",
+    srcs = ["jaxite/jaxite_ckks/mul_test.py"],
+    main = "jaxite/jaxite_ckks/mul_test.py",
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//hypothesis",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+tpu_test(
     name = "rescale_test",
     size = "medium",
     srcs = ["jaxite/jaxite_ckks/rescale_test.py"],
