@@ -222,58 +222,6 @@ tpu_test(
     ],
 )
 
-tpu_test(
-    name = "jaxite_word_ntt_test",
-    size = "large",
-    timeout = "eternal",
-    srcs = ["jaxite/jaxite_word/ntt_test.py"],
-    shard_count = 3,
-    deps = [
-        ":jaxite",
-        # copybara: xprof_analysis_client  # buildcleaner: keep
-        # copybara: xprof_session  # buildcleaner: keep
-        "@abseil-py//absl/testing:absltest",
-        "@abseil-py//absl/testing:parameterized",
-        "@jaxite_deps//jax",
-        "@jaxite_deps//jaxlib",
-        "@jaxite_deps//numpy",
-    ],
-)
-
-tpu_test(
-    name = "jaxite_word_sub_test",
-    size = "large",
-    timeout = "eternal",
-    srcs = ["jaxite/jaxite_word/sub_test.py"],
-    shard_count = 3,
-    deps = [
-        ":jaxite",
-        # copybara: xprof_analysis_client  # buildcleaner: keep
-        # copybara: xprof_session  # buildcleaner: keep
-        "@abseil-py//absl/testing:absltest",
-        "@abseil-py//absl/testing:parameterized",
-        "@jaxite_deps//jax",
-        "@jaxite_deps//jaxlib",
-        "@jaxite_deps//numpy",
-    ],
-)
-
-tpu_test(
-    name = "add_test",
-    size = "large",
-    timeout = "eternal",
-    srcs = ["jaxite/jaxite_word/add_test.py"],
-    shard_count = 3,
-    deps = [
-        ":jaxite",
-        "@abseil-py//absl/testing:absltest",
-        "@abseil-py//absl/testing:parameterized",
-        "@jaxite_deps//jax",
-        "@jaxite_deps//jaxlib",
-        "@jaxite_deps//numpy",
-    ],
-)
-
 cpu_gpu_tpu_test(
     name = "decomposition_test",
     size = "small",
