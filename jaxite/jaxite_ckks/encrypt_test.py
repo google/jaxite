@@ -122,6 +122,45 @@ class EncryptTest(absltest.TestCase):
 
     np.testing.assert_array_equal(np.array(decrypted_pt.data), pt_data)
 
+  def test_encrypt_moduli_mismatch_raises_error(self):
+    degree = 8
+    moduli = [335552513, 335546369]
+    pk, _ = key_gen.keygen(degree, moduli)
+
+    pt_data = np.zeros((degree, len(moduli)), dtype=np.uint32)
+    bad_moduli = [335546369, 335552513]
+    pt = types.Plaintext(
+        jnp.array(pt_data), jnp.array(bad_moduli, dtype=jnp.uint32)
+    )
+
+    encryptor = encrypt.Encrypt(pk)
+    with self.assertRaisesRegex(
+        ValueError,
+        'Plaintext moduli must match the prefix of public key moduli',
+    ):
+      encryptor.encrypt(pt)
+
+  def test_decrypt_moduli_mismatch_raises_error(self):
+    degree = 8
+    moduli = [335552513, 335546369]
+    pk, sk = key_gen.keygen(degree, moduli)
+
+    encoder = encode.Encode(degree, moduli, scale=2**10)
+    pt = encoder.encode([1.0, 2.0, 3.0, 4.0])
+
+    encryptor = encrypt.Encrypt(pk)
+    ct = encryptor.encrypt(pt)
+
+    bad_moduli = [335546369, 335552513]
+    bad_ct = types.Ciphertext(ct.data, jnp.array(bad_moduli, dtype=jnp.uint32))
+
+    decryptor = encrypt.Decrypt(sk)
+    with self.assertRaisesRegex(
+        ValueError,
+        'Ciphertext moduli must match the prefix of secret key moduli',
+    ):
+      decryptor.decrypt(bad_ct)
+
   def test_jax_compatibility(self):
     """Ensure Ciphertext and keys are valid JAX types."""
     degree = 8
