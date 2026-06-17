@@ -624,6 +624,23 @@ py_test(
     ],
 )
 
+cpu_gpu_tpu_test(
+    name = "blind_rotate_ckks_test",
+    size = "small",
+    timeout = "long",
+    srcs = ["jaxite/jaxite_ckks/blind_rotate_test.py"],
+    main = "jaxite/jaxite_ckks/blind_rotate_test.py",
+    shard_count = 5,
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
 tpu_test(
     name = "rescale_test",
     size = "medium",
