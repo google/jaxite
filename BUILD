@@ -52,7 +52,6 @@ py_library(
         "@jaxite_deps//jaxlib",
         # copybara: jax/experimental:pallas_lib
         # copybara: jax/experimental:pallas_tpu
-        "@jaxite_deps//numpy",
     ],
 )
 
@@ -82,7 +81,6 @@ py_library(
         ":jaxite_cggi",
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
-        "@jaxite_deps//numpy",
     ],
 )
 
@@ -447,7 +445,6 @@ py_test(
     srcs = ["jaxite/jaxite_ckks/rns_test.py"],
     deps = [
         ":jaxite_ckks",
-        ":test_utils",
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
         "@jaxite_deps//hypothesis",
@@ -571,8 +568,6 @@ py_test(
     deps = [
         ":jaxite_ckks",
         "@abseil-py//absl/testing:absltest",
-        "@jaxite_deps//jax",
-        "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",
     ],
 )
@@ -586,8 +581,6 @@ py_test(
         ":jaxite_ckks",
         "@abseil-py//absl/testing:absltest",
         "@jaxite_deps//hypothesis",
-        "@jaxite_deps//jax",
-        "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",
     ],
 )

@@ -14,6 +14,11 @@ jobs:
   build-and-test:
     runs-on:
       labels: ubuntu-22.04-16core
+    env:
+      XLA_FLAGS: "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
+      OMP_NUM_THREADS: 1
+      MKL_NUM_THREADS: 1
+      OPENBLAS_NUM_THREADS: 1
     steps:
       - name: Check out repository code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -23,15 +28,16 @@ jobs:
         with:
           path: |
             ~/.cache/bazel
-          key: ${{ runner.os }}-bazel-${{ hashFiles('.bazelversion', '.bazelrc', 'requirements.txt') }}
+          key: ${{ runner.os }}-bazel-opt-${{ hashFiles('.bazelversion', '.bazelrc', 'requirements.txt') }}
 
       - name: "Run `bazel build`"
         run: |
-          bazel build //...
+          bazel build -c opt //...
 
       - name: "Run `bazel test`"
         run: |
-          bazel test \
+          bazel test -c opt \
+            --local_cpu_resources=4 \
             --test_output=errors \
             --test_size_filters=small \
             --test_timeout=1800 \

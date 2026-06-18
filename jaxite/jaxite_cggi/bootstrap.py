@@ -76,9 +76,13 @@ def gen_bootstrapping_key(
   else:
     num_bsk_encryptions = lwe_sk_dim
 
+  num_batches = GEN_BSK_NUM_BATCHES
+  batch_size = (num_bsk_encryptions + num_batches - 1) // num_batches
+  padded_num_bsk_encryptions = batch_size * num_batches
+
   ai_samples = prg.uniform(
       shape=(
-          num_bsk_encryptions,
+          padded_num_bsk_encryptions,
           num_blocks + 1,
           levels,
           k,
@@ -87,7 +91,7 @@ def gen_bootstrapping_key(
       dtype=jnp.uint32,
   )
   error_samples = prg.rounded_normal(
-      shape=(num_bsk_encryptions, num_blocks + 1, levels),
+      shape=(padded_num_bsk_encryptions, num_blocks + 1, levels),
       dtype=jnp.uint32,
   )
 
@@ -122,20 +126,22 @@ def gen_bootstrapping_key(
     #  BSK_{i}   = s_{i},
     bsk_input_pairs = lwe_sk_data
 
+  # Pad bsk_input_pairs to match the padded shape for batching
+  pad_size = padded_num_bsk_encryptions - num_bsk_encryptions
+  if pad_size > 0:
+    bsk_input_pairs = jnp.pad(
+        bsk_input_pairs, (0, pad_size), mode="constant", constant_values=0
+    )
+
   # Applying vmap to the entire jit_encrypt over all sk bits will exhaust the
   # tensor core's memory with prod security parameters. It will eagerly allocate
   # a u32[945,2,8,1,1024,1024] which has size ~60 GiB, but a Dragonfish chip has
   # only 16 GiB. To reduce memory usage, we can use lax.map to batch the
-  # computation in 15 batches and then reshape the result at the end. Doing this
-  # results in intermediate allocations of size ~4 GiB for prod security
-  # parameters, which provides enough space for the remaining allocations of
-  # random numbers.
-  num_batches = GEN_BSK_NUM_BATCHES
-  batch_size = num_bsk_encryptions // num_batches
-  if num_bsk_encryptions % num_batches != 0:
-    print(NON_DIVISIBLE_BATCH_SIZE_WARNING % (batch_size, num_bsk_encryptions))
-    num_batches = 1
-    batch_size = num_bsk_encryptions
+  # computation in 20 batches (defined by GEN_BSK_NUM_BATCHES) and then reshape
+  # the result at the end. Doing this results in intermediate allocations of
+  # size ~4 GiB for prod security parameters, which provides enough space for
+  # the remaining allocations of random numbers.
+  # We padded the input to ensure it is divisible by num_batches.
 
   ai_samples = ai_samples.reshape((
       num_batches,
@@ -179,13 +185,14 @@ def gen_bootstrapping_key(
       process_one_batch, jnp.arange(num_batches)
   )
   # The output is stacked by batches, and this reshape combines the first two
-  # axes into a single axis of size num_bsk_encryptions.
+  # axes into a single axis of size padded_num_bsk_encryptions.
   encrypted_lwe_sk_bits = encrypted_lwe_sk_bits.reshape((
-      num_bsk_encryptions,
+      padded_num_bsk_encryptions,
       (num_blocks + 1) * levels,
       num_blocks + 1,
       rlwe_sk.modulus_degree,
   ))
+  encrypted_lwe_sk_bits = encrypted_lwe_sk_bits[:num_bsk_encryptions]
 
   def bat_offline_compile_cggi(mat_a):
     """Convert the input matrix with 32 bit elements into u8(*matrix.shape,4,4).
