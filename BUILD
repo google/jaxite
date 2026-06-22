@@ -649,3 +649,20 @@ tpu_test(
         "@jaxite_deps//numpy",
     ],
 )
+
+cpu_gpu_tpu_test(
+    name = "conjugate_test",
+    size = "small",
+    timeout = "long",
+    srcs = ["jaxite/jaxite_ckks/conjugate_test.py"],
+    main = "jaxite/jaxite_ckks/conjugate_test.py",
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//hypothesis",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)

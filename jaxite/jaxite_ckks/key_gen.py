@@ -98,7 +98,7 @@ def compute_scaled_source_key_partition(
 
   if start_idx < end_idx:
     q_slice = np.array(q_limbs[start_idx:end_idx], dtype=np.uint64)
-    p_mod_q = p_val % q_slice
+    p_mod_q = np.array([p_val % int(q) for q in q_slice], dtype=np.uint64)
     s_slice = source_key.data[:, start_idx:end_idx]
     res = (s_slice * p_mod_q) % q_slice
     scaled_key[:, start_idx:end_idx] = res
