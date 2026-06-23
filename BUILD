@@ -161,9 +161,7 @@ tpu_test(
     size = "large",
     timeout = "moderate",
     srcs = ["jaxite_ec/finite_field_test.py"],
-    python_version = "PY3",
     shard_count = 3,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         # copybara: xprof_analysis_client  # buildcleaner: keep
@@ -200,9 +198,7 @@ tpu_test(
         "jaxite_ec/test_case/t8/zprize_msm_curve_377_res_dim_8_seed_0.csv",
         "jaxite_ec/test_case/t8/zprize_msm_curve_377_scalars_dim_8_seed_0.csv",
     ],
-    python_version = "PY3",
     shard_count = 3,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         # copybara: xprof_analysis_client  # buildcleaner: keep
@@ -221,9 +217,7 @@ tpu_test(
     size = "large",
     timeout = "long",
     srcs = ["jaxite_ec/elliptic_curve_test.py"],
-    python_version = "PY3",
     shard_count = 16,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         # copybara: xprof_analysis_client  # buildcleaner: keep
@@ -486,6 +480,20 @@ cpu_gpu_tpu_test(
 )
 
 cpu_gpu_tpu_test(
+    name = "bat_utils_test",
+    size = "small",
+    srcs = ["jaxite/jaxite_ckks/bat_utils_test.py"],
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+cpu_gpu_tpu_test(
     name = "barrett_test",
     size = "small",
     timeout = "moderate",
@@ -617,6 +625,20 @@ py_test(
     ],
 )
 
+py_test(
+    name = "blind_rotate_utils_test",
+    size = "small",
+    srcs = ["jaxite/jaxite_ckks/blind_rotate_utils_test.py"],
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
 cpu_gpu_tpu_test(
     name = "blind_rotate_ckks_test",
     size = "small",
@@ -628,6 +650,7 @@ cpu_gpu_tpu_test(
         ":jaxite_ckks",
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//absl/logging",
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",

@@ -7,6 +7,7 @@ from typing import Iterable
 import jax
 import jax.numpy as jnp
 from jaxite.jaxite_ckks import barrett
+from jaxite.jaxite_ckks import bat_utils
 from jaxite.jaxite_ckks import rns_utils
 
 # Enable 64-bit precision for large integer arithmetic
@@ -85,48 +86,6 @@ class BarrettBasisConversionConstants:
     return id(self)
 
 
-def matmul_bat_einsum(
-    lhs: jax.Array, rhs: jax.Array, subscripts: str
-) -> jax.Array:
-  """Basis Aligned Transformation (BAT) based matrix multiplication.
-
-  Args:
-    lhs: input
-    rhs: twiddle factor matrix
-    subscripts: einsum subscripts
-
-  Returns:
-    The matrix multiplication result.
-  """
-  lhs_u8 = lhs.view(jnp.uint8)
-  shift_factors = jnp.array([0, 8, 16, 24], dtype=jnp.uint32)
-  i8_products = jnp.einsum(
-      subscripts, lhs_u8, rhs, preferred_element_type=jnp.uint32
-  )
-  return jnp.sum(i8_products.astype(jnp.uint64) << shift_factors, axis=(-1,))
-
-
-def _basis_aligned_transformation(
-    matrix: jnp.ndarray, moduli: list[int]
-) -> jnp.ndarray:
-  """Prepares a matrix for Basis Aligned Transformation (BAT)."""
-  matrix_u64 = matrix.astype(jnp.uint64)
-  num_bytes = 4
-  matrix_u64_byteshifted = jnp.array(
-      [matrix_u64 << (8 * byte_idx) for byte_idx in range(num_bytes)],
-      dtype=jnp.uint64,
-  )
-  moduli_arr = jnp.array(moduli, dtype=jnp.uint64)
-  matrix_u64_byteshifted_mod_modulus = (
-      matrix_u64_byteshifted % moduli_arr
-  ).astype(jnp.uint32)
-  # Output shape: (4, ..., moduli, 4)
-  matrix_u8 = jax.lax.bitcast_convert_type(
-      matrix_u64_byteshifted_mod_modulus, jnp.uint8
-  )
-  return matrix_u8
-
-
 @jax.tree_util.register_pytree_node_class
 class BasisConversionBarrett(BasisConversion):
   """Kernel for Basis Conversion with Barrett reduction."""
@@ -167,13 +126,11 @@ class BasisConversionBarrett(BasisConversion):
           dtype=jnp.uint64,
       )
 
-      # BAT Preprocessing
-      q_hat_mod_p_bat_raw = _basis_aligned_transformation(
+      q_hat_mod_p_bat_raw = bat_utils.basis_aligned_transformation(
           q_hat_mod_p, target_moduli
       )
-      q_hat_mod_p_bat = q_hat_mod_p_bat_raw.transpose(1, 0, 2, 3).reshape(
-          -1, q_hat_mod_p_bat_raw.shape[2], 4
-      )
+      # Shape: (4, num_Q, num_P, 4) -> (num_Q, 4, num_P, 4)
+      q_hat_mod_p_bat = q_hat_mod_p_bat_raw.transpose(1, 0, 2, 3)
 
       constants = BarrettBasisConversionConstants(
           q_hat_inv_mod_q=q_hat_inv_mod_q,
@@ -191,21 +148,39 @@ class BasisConversionBarrett(BasisConversion):
     constants = self.precomputed_constants[control_index]
     in_tower = jnp.asarray(in_tower, dtype=jnp.uint64)
 
+    degree = in_tower.shape[-2]
+    num_Q = in_tower.shape[-1]
+
+    if degree >= 128:
+      block_size = 128
+      num_blocks = degree // 128
+    else:
+      block_size = degree
+      num_blocks = 1
+
+    # Reshape degree dimension to (num_blocks, block_size) to optimize TPU vectorization
+    in_tower_reshaped = in_tower.reshape(
+        *in_tower.shape[:-2], num_blocks, block_size, num_Q
+    )
+
     # Step 1: Compute c_unreduced = in_tower * QHatInvModq
-    # Ensure constants.q_hat_inv_mod_q broadcasts over leading dimensions.
-    # q_hat_inv_mod_q has shape (sizeQ,). in_tower has shape (..., sizeQ).
-    c_unreduced = in_tower * constants.q_hat_inv_mod_q
+    c_unreduced = in_tower_reshaped * constants.q_hat_inv_mod_q
 
     # Step 2: Modular Reduction
     c = barrett.modular_reduction(c_unreduced, constants.origin_barrett)
 
     # Step 3: BAT-based matrix multiplication
-    summed_terms = matmul_bat_einsum(
-        c, constants.q_hat_mod_p_bat, "...q,qpb->...pb"
+    summed_terms = bat_utils.matmul_bat_einsum(
+        c, constants.q_hat_mod_p_bat, "...mq,mqpb->...pb"
+    )
+
+    # Flatten the degree dimension back
+    summed_terms_flat = summed_terms.reshape(
+        *summed_terms.shape[:-3], degree, summed_terms.shape[-1]
     )
 
     # Step 4: Final Modular Reduction
     out_tower = barrett.modular_reduction(
-        summed_terms, constants.target_barrett
+        summed_terms_flat, constants.target_barrett
     )
     return out_tower
