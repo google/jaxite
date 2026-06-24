@@ -7,6 +7,7 @@ from typing import Iterable
 import jax
 import jax.numpy as jnp
 from jaxite.jaxite_ckks import barrett
+from jaxite.jaxite_ckks import bat_utils
 from jaxite.jaxite_ckks import math as ckks_math
 
 # Enable 64-bit precision for large integer arithmetic
@@ -66,6 +67,7 @@ class NTTBarrettConstants:
   moduli: jax.Array
 
   def tree_flatten(self):
+    """Flattens this object into a JAX pytree."""
     children = (
         self.ntt_bat_tf_step1,
         self.ntt_tf_step2,
@@ -101,48 +103,6 @@ class NTTBarrettConstants:
     )
 
 
-def _matmul_bat_einsum(
-    lhs: jax.Array, rhs: jax.Array, subscripts: str
-) -> jax.Array:
-  """Basis Aligned Transformation (BAT) based matrix multiplication.
-
-  Args:
-    lhs: input
-    rhs: twiddle factor matrix
-    subscripts: einsum subscripts
-
-  Returns:
-    The matrix multiplication result.
-  """
-  lhs_u8 = jax.lax.bitcast_convert_type(lhs, jnp.uint8)
-  shift_factors = jnp.array([0, 8, 16, 24], dtype=jnp.uint32)
-  i8_products = jnp.einsum(
-      subscripts, lhs_u8, rhs, preferred_element_type=jnp.uint32
-  )
-  return jnp.sum(i8_products.astype(jnp.uint64) << shift_factors, axis=(-1,))
-
-
-def _basis_aligned_transformation(
-    matrix: jnp.ndarray, moduli: list[int]
-) -> jnp.ndarray:
-  """Prepares a matrix for Basis Aligned Transformation (BAT)."""
-  matrix_u64 = matrix.astype(jnp.uint64)
-  num_bytes = 4
-  matrix_u64_byteshifted = jnp.array(
-      [matrix_u64 << (8 * byte_idx) for byte_idx in range(num_bytes)],
-      dtype=jnp.uint64,
-  )
-  moduli_arr = jnp.array(moduli, dtype=jnp.uint64)
-  matrix_u64_byteshifted_mod_modulus = (
-      matrix_u64_byteshifted % moduli_arr
-  ).astype(jnp.uint32)
-  # Output shape: (4, ..., moduli, 4)
-  matrix_u8 = jax.lax.bitcast_convert_type(
-      matrix_u64_byteshifted_mod_modulus, jnp.uint8
-  )
-  return matrix_u8
-
-
 @jax.tree_util.register_pytree_node_class
 class NTTBarrett(NTTBase):
   """Kernel for NTT with Barrett reduction."""
@@ -157,6 +117,7 @@ class NTTBarrett(NTTBase):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
+    del aux_data
     obj = cls()
     obj.constants = children[0]
     return obj
@@ -261,7 +222,7 @@ class NTTBarrett(NTTBase):
 
     def to_bat(tf, moduli):
       # tf: (R, R, M)
-      raw_bat = _basis_aligned_transformation(tf, moduli)
+      raw_bat = bat_utils.basis_aligned_transformation(tf, moduli)
       # raw_bat shape: (4_byte_shift, rows, cols, moduli, 4_u8_bytes)
       # We want (rows, 4_byte_shift, cols, 4_u8_bytes, moduli)
       # matching subscripts q=shift, p=u8
@@ -286,7 +247,7 @@ class NTTBarrett(NTTBase):
     # q=u8 (lhs axis 4), q=shift (rhs axis 1). Summed.
     # z=target row (axis 0), r=source row (axis 2). Sum over r.
     # p=u8 target (axis 3). Becomes axis 4 of result.
-    res1 = _matmul_bat_einsum(
+    res1 = bat_utils.matmul_bat_einsum(
         v, self.constants.ntt_bat_tf_step1, "...rcmq,zqrpm->...zcmp"
     )
     res1 = barrett.modular_reduction(res1, self.constants.barrett_constants)
@@ -300,7 +261,7 @@ class NTTBarrett(NTTBase):
     # For ntt_tf_step3, axis 0 is source, axis 1 is target.
     # So to_bat axis 0 is source, axis 2 is target.
     # Subscripts: "cqnpm" -> c=0 (source), n=2 (target).
-    res3 = _matmul_bat_einsum(
+    res3 = bat_utils.matmul_bat_einsum(
         res2, self.constants.ntt_bat_tf_step3, "...rcmq,cqnpm->...rnmp"
     )
     return barrett.modular_reduction(res3, self.constants.barrett_constants)
@@ -311,7 +272,7 @@ class NTTBarrett(NTTBase):
     # itf1 axis 0 is source, axis 1 is target.
     # to_bat axis 0 is source, axis 2 is target.
     # Subscripts: "cqlpm" -> c=0 (source), l=2 (target).
-    res1 = _matmul_bat_einsum(
+    res1 = bat_utils.matmul_bat_einsum(
         v, self.constants.intt_bat_tf_step1, "...rcmq,cqlpm->...rlmp"
     )
     res1 = barrett.modular_reduction(res1, self.constants.barrett_constants)
@@ -323,7 +284,7 @@ class NTTBarrett(NTTBase):
     # itf3 axis 0 is target, axis 1 is source.
     # to_bat axis 0 is target, axis 2 is source.
     # Subscripts: "lqrpm" -> l=0 (target), r=2 (source).
-    res3 = _matmul_bat_einsum(
+    res3 = bat_utils.matmul_bat_einsum(
         res2, self.constants.intt_bat_tf_step3, "...rcmq,lqrpm->...lcmp"
     )
     return barrett.modular_reduction(res3, self.constants.barrett_constants)

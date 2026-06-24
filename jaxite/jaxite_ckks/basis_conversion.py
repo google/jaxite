@@ -7,6 +7,7 @@ from typing import Iterable
 import jax
 import jax.numpy as jnp
 from jaxite.jaxite_ckks import barrett
+from jaxite.jaxite_ckks import bat_utils
 from jaxite.jaxite_ckks import rns_utils
 
 # Enable 64-bit precision for large integer arithmetic
@@ -79,52 +80,11 @@ class BarrettBasisConversionConstants:
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
+    del aux_data
     return cls(*children)
 
   def __hash__(self):
     return id(self)
-
-
-def matmul_bat_einsum(
-    lhs: jax.Array, rhs: jax.Array, subscripts: str
-) -> jax.Array:
-  """Basis Aligned Transformation (BAT) based matrix multiplication.
-
-  Args:
-    lhs: input
-    rhs: twiddle factor matrix
-    subscripts: einsum subscripts
-
-  Returns:
-    The matrix multiplication result.
-  """
-  lhs_u8 = lhs.view(jnp.uint8)
-  shift_factors = jnp.array([0, 8, 16, 24], dtype=jnp.uint32)
-  i8_products = jnp.einsum(
-      subscripts, lhs_u8, rhs, preferred_element_type=jnp.uint32
-  )
-  return jnp.sum(i8_products.astype(jnp.uint64) << shift_factors, axis=(-1,))
-
-
-def _basis_aligned_transformation(
-    matrix: jnp.ndarray, moduli: list[int]
-) -> jnp.ndarray:
-  """Prepares a matrix for Basis Aligned Transformation (BAT)."""
-  matrix_u64 = matrix.astype(jnp.uint64)
-  num_bytes = 4
-  matrix_u64_byteshifted = jnp.array(
-      [matrix_u64 << (8 * byte_idx) for byte_idx in range(num_bytes)],
-      dtype=jnp.uint64,
-  )
-  moduli_arr = jnp.array(moduli, dtype=jnp.uint64)
-  matrix_u64_byteshifted_mod_modulus = (
-      matrix_u64_byteshifted % moduli_arr
-  ).astype(jnp.uint32)
-  # Output shape: (4, ..., moduli, 4)
-  matrix_u8 = jax.lax.bitcast_convert_type(
-      matrix_u64_byteshifted_mod_modulus, jnp.uint8
-  )
-  return matrix_u8
 
 
 @jax.tree_util.register_pytree_node_class
@@ -141,6 +101,7 @@ class BasisConversionBarrett(BasisConversion):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
+    del aux_data
     obj = cls()
     obj.precomputed_constants = children[0]
     return obj
@@ -167,8 +128,7 @@ class BasisConversionBarrett(BasisConversion):
           dtype=jnp.uint64,
       )
 
-      # BAT Preprocessing
-      q_hat_mod_p_bat_raw = _basis_aligned_transformation(
+      q_hat_mod_p_bat_raw = bat_utils.basis_aligned_transformation(
           q_hat_mod_p, target_moduli
       )
       q_hat_mod_p_bat = q_hat_mod_p_bat_raw.transpose(1, 0, 2, 3).reshape(
@@ -200,8 +160,11 @@ class BasisConversionBarrett(BasisConversion):
     c = barrett.modular_reduction(c_unreduced, constants.origin_barrett)
 
     # Step 3: BAT-based matrix multiplication
-    summed_terms = matmul_bat_einsum(
-        c, constants.q_hat_mod_p_bat, "...q,qpb->...pb"
+    summed_terms = bat_utils.matmul_bat_einsum(
+        c,
+        constants.q_hat_mod_p_bat,
+        "...q,qpb->...pb",
+        merge_byte_dimension=True,
     )
 
     # Step 4: Final Modular Reduction

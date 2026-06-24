@@ -486,6 +486,20 @@ cpu_gpu_tpu_test(
 )
 
 cpu_gpu_tpu_test(
+    name = "bat_utils_test",
+    size = "small",
+    srcs = ["jaxite/jaxite_ckks/bat_utils_test.py"],
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+cpu_gpu_tpu_test(
     name = "barrett_test",
     size = "small",
     timeout = "moderate",
