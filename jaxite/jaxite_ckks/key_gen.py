@@ -214,3 +214,25 @@ def gen_cm_keys(
         cm_keys[i, j] = encryptor.encrypt(plain_0)
 
   return cm_keys
+
+
+def gen_conjugate_key(
+    sk: types.SecretKey,
+    q_limbs: list[int],
+    p_limbs: list[int],
+    dnum: int,
+    random_source: random.RandomSource | None = None,
+) -> types.EvaluationKeys:
+  """Generates the key switching key for the conjugate automorphism."""
+  # Conjugate of secret key: s(X^-1) is represented by reversing the index
+  # of the secret key in NTT domain.
+  s_conj_data = np.flip(sk.data, axis=0)
+  s_conj = types.SecretKey(s_conj_data, sk.moduli)
+  return gen_key_switching_key(
+      source_key=s_conj,
+      dest_key=sk,
+      q_limbs=q_limbs,
+      p_limbs=p_limbs,
+      dnum=dnum,
+      random_source=random_source,
+  )
