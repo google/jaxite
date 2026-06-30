@@ -4,6 +4,7 @@ import math
 
 import hypothesis
 from hypothesis import strategies as st
+import jax.numpy as jnp
 from jaxite.jaxite_ckks import barrett
 from jaxite.jaxite_ckks import basis_conversion
 from jaxite.jaxite_ckks import conjugate
@@ -90,7 +91,7 @@ class ConjugateTest(parameterized.TestCase):
     ct_res = conjugate_kernel.conjugate(
         ct=ct_in,
         conj_key=conj_key,
-        p_limbs=p_limbs,
+        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
         bc_kernel=bc_kernel,
         mul_kernel=mul_kernel,
         rescale_kernel=rescale_kernel,
@@ -234,7 +235,7 @@ class ConjugateTest(parameterized.TestCase):
     ct_conj = conjugate_kernel.conjugate(
         ct=ct_in,
         conj_key=conj_key,
-        p_limbs=p_limbs,
+        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
         bc_kernel=bc_kernel,
         mul_kernel=mul_kernel,
         rescale_kernel=rescale_kernel,
@@ -244,7 +245,7 @@ class ConjugateTest(parameterized.TestCase):
     ct_conj_conj = conjugate_kernel.conjugate(
         ct=ct_conj,
         conj_key=conj_key,
-        p_limbs=p_limbs,
+        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
         bc_kernel=bc_kernel,
         mul_kernel=mul_kernel,
         rescale_kernel=rescale_kernel,

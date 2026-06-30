@@ -91,4 +91,5 @@ def modular_reduction(z: jax.Array, constants: BarrettConstants) -> jax.Array:
   t = ((z1 * m) >> w) + (z2 * m)
   t = t >> s_w
   z = z - t * moduli
-  return jnp.where(z >= moduli, z - moduli, z).astype(jnp.uint32)
+  z = jnp.where(z >= moduli, z - moduli, z)
+  return z.astype(jnp.uint32)

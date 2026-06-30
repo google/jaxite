@@ -98,6 +98,7 @@ py_library(
     deps = [
         # copybara: xprof_analysis_client  # buildcleaner: keep
         # copybara: xprof_session  # buildcleaner: keep
+        "@abseil-py//absl/testing:absltest",
         "@jaxite_deps//gmpy2",
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
@@ -569,6 +570,7 @@ py_test(
     deps = [
         ":jaxite_ckks",
         "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",
@@ -642,6 +644,7 @@ cpu_gpu_tpu_test(
         ":jaxite_ckks",
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//hypothesis",
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",
@@ -675,6 +678,21 @@ cpu_gpu_tpu_test(
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
         "@jaxite_deps//hypothesis",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+cpu_gpu_tpu_test(
+    name = "blind_rotate_utils_test",
+    size = "small",
+    srcs = ["jaxite/jaxite_ckks/blind_rotate_utils_test.py"],
+    main = "jaxite/jaxite_ckks/blind_rotate_utils_test.py",
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",

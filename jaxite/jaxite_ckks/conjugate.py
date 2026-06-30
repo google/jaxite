@@ -47,6 +47,7 @@ class Conjugation:
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
+    del aux_data
     obj = cls()
     obj.key_switcher = children[0]
     return obj
@@ -55,7 +56,7 @@ class Conjugation:
       self,
       ct: types.Ciphertext,
       conj_key: types.EvaluationKeys,
-      p_limbs: list[int],
+      p_limbs: jax.Array,
       bc_kernel: basis_conversion.BasisConversionBarrett,
       mul_kernel: mul.MulPlaintextCiphertextBarrett,
       rescale_kernel: rescale.Rescale,
