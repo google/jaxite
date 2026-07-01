@@ -50,7 +50,7 @@ class ECPoint(Generic[T]):
     self.coordinate_system = coordinate_system
     self.zero = zero
     self.coordinates = self.coordinate_system.generate_formal_coordinates(
-        coordinates, zero
+        coordinates, zero  # pyrefly: ignore[bad-argument-type]
     )
     self.type = coordinate_system.get_type()
 
@@ -62,7 +62,7 @@ class ECPoint(Generic[T]):
   ) -> None:
     self.coordinates[index] = value  # type: ignore
 
-  def __eq__(self, other: 'ECPoint') -> bool:
+  def __eq__(self, other: 'ECPoint') -> bool:  # pyrefly: ignore[bad-override]
     if not isinstance(other, ECPoint):
       return NotImplemented
 
@@ -145,7 +145,7 @@ class EllipticCurveCoordinateSystem(ABC, Generic[T]):
       coordinates: Optional[Union[List[T], List[int]]] = None,
       zero: bool = False,
   ) -> ECPoint[T]:
-    return ECPoint[T](coordinates, self, zero)
+    return ECPoint[T](coordinates, self, zero)  # pyrefly: ignore[bad-argument-type]
 
   @abstractmethod
   def point_add(self, point_a: ECPoint[T], point_b: ECPoint[T]):
@@ -181,7 +181,7 @@ class ECCSWeierstrass(EllipticCurveCoordinateSystem[FieldEle]):
     self.order = BigInt(config['order'])
 
     self.generator: List[FieldEle] = []
-    for coordinate in config['generator']:
+    for coordinate in config['generator']:  # pyrefly: ignore[not-iterable]
       element = self.ff_zero.copy(coordinate)
       self.generator.append(element)
     self.a = self.ff_zero.copy(config['a'])
@@ -283,7 +283,7 @@ class ECCSWeierstrassProjective(ECCSWeierstrass):
     self.type = CoordinateSystemType.WEIERSTRASS_PROJECTIVE
 
     self.generator: List[FieldEle] = []
-    for coordinate in config['generator']:
+    for coordinate in config['generator']:  # pyrefly: ignore[not-iterable]
       element = self.ff_zero.copy(coordinate)
       self.generator.append(element)
 
@@ -597,13 +597,13 @@ class ECCSTwistedEdwardsExtended(ECCSWeierstrass):
   ) -> ECPoint[T]:
     if twist:
       ff_coordinates = []
-      for coordinate in coordinates:
+      for coordinate in coordinates:  # pyrefly: ignore[not-iterable]
         if isinstance(coordinate, FieldEle):
           ff_coordinates.append(coordinate)
         else:
           ff_coordinates.append(self.ff_zero.copy(coordinate))
       coordinates = self.twist(ff_coordinates)
-    return ECPoint[T](coordinates, self, zero)
+    return ECPoint[T](coordinates, self, zero)  # pyrefly: ignore[bad-argument-type]
 
   def generate_formal_coordinates(
       self,

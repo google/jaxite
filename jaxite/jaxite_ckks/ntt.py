@@ -83,7 +83,7 @@ class NTTBarrettConstants:
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    return cls(*children[:7], *aux_data, children[7])
+    return cls(*children[:7], *aux_data, children[7])  # pyrefly: ignore[bad-argument-count]
 
   def __hash__(self):
     return id(self)
@@ -108,7 +108,7 @@ class NTTBarrett(NTTBase):
   """Kernel for NTT with Barrett reduction."""
 
   def __init__(self):
-    self.constants: NTTBarrettConstants = None
+    self.constants: NTTBarrettConstants = None  # pyrefly: ignore[bad-assignment]
 
   def tree_flatten(self):
     children = (self.constants,)

@@ -155,7 +155,7 @@ class Rescale:
 
     data = ciphertext.data
     num_elements, degree, num_moduli = data.shape
-    assert degree == self.r * self.c
+    assert degree == self.r * self.c  # pyrefly: ignore[unsupported-operation]
 
     current_moduli = self.moduli
 
@@ -163,9 +163,9 @@ class Rescale:
       n = len(current_moduli)
       last_idx = n - 1
 
-      gammas = self.gammas_stacked[iter_idx, :last_idx]
-      betas = self.betas_stacked[iter_idx, :last_idx]
-      threshold = self.thresholds[iter_idx]
+      gammas = self.gammas_stacked[iter_idx, :last_idx]  # pyrefly: ignore[unsupported-operation]
+      betas = self.betas_stacked[iter_idx, :last_idx]  # pyrefly: ignore[unsupported-operation]
+      threshold = self.thresholds[iter_idx]  # pyrefly: ignore[unsupported-operation]
       last_modulus = current_moduli[-1]
       remaining_moduli = current_moduli[:-1]
 
