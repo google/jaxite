@@ -633,6 +633,18 @@ py_test(
     ],
 )
 
+py_test(
+    name = "jaxite_ckks/scratch_test",
+    srcs = ["jaxite/jaxite_ckks/scratch_test.py"],
+    deps = [
+        ":jaxite_ckks",
+        "@jaxite_deps//absl:app",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
 cpu_gpu_tpu_test(
     name = "blind_rotate_ckks_test",
     size = "small",
@@ -678,6 +690,22 @@ cpu_gpu_tpu_test(
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
         "@jaxite_deps//hypothesis",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+cpu_gpu_tpu_test(
+    name = "rotate_test",
+    size = "small",
+    timeout = "long",
+    srcs = ["jaxite/jaxite_ckks/rotate_test.py"],
+    main = "jaxite/jaxite_ckks/rotate_test.py",
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",

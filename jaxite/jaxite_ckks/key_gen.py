@@ -377,3 +377,26 @@ def gen_mux_rotation_key(
     )
     keys.append((hmrkey_jk_0, hmrkey_not_jk_1))
   return types.MuxRotationKey(keys)
+
+
+def gen_rotation_key(
+    sk: types.SecretKey,
+    j: int,
+    q_limbs: list[int],
+    p_limbs: list[int],
+    dnum: int,
+    random_source: random.RandomSource | None = None,
+) -> types.EvaluationKeys:
+  """Generates a key switching key to support homomorphic rotation by j slots."""
+  degree = sk.data.shape[0]
+  g = pow(5, j, 2 * degree)
+  sk_rot_data = blind_rotate_utils.apply_automorphism_ntt(jnp.array(sk.data), g)
+  sk_rot = types.SecretKey(np.array(sk_rot_data), sk.moduli)
+  return gen_key_switching_key(
+      source_key=sk_rot,
+      dest_key=sk,
+      q_limbs=q_limbs,
+      p_limbs=p_limbs,
+      dnum=dnum,
+      random_source=random_source,
+  )
