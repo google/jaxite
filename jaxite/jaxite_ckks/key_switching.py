@@ -156,11 +156,11 @@ class KeySwitcher:
       ksk_a_part = ksk.a[i]
 
       c0_ks_part = mul_kernel.mul(
-          types.Plaintext(data=ksk_b_part, moduli=all_moduli),
+          types.Plaintext(data=ksk_b_part, moduli=all_moduli),  # pyrefly: ignore[bad-argument-type]
           types.Plaintext(data=c1_part_qp, moduli=all_moduli),
       )
       c1_ks_part = mul_kernel.mul(
-          types.Plaintext(data=ksk_a_part, moduli=all_moduli),
+          types.Plaintext(data=ksk_a_part, moduli=all_moduli),  # pyrefly: ignore[bad-argument-type]
           types.Plaintext(data=c1_part_qp, moduli=all_moduli),
       )
 

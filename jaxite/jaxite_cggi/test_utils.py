@@ -38,7 +38,7 @@ class ConsistencyChecker:
     self.records = dict()
 
   def store(self, name: str, value: jnp.ndarray) -> None:
-    value = value.tolist()
+    value = value.tolist()  # pyrefly: ignore[bad-assignment]
     if name in self.records:
       self.records[name].append(value)
     else:
@@ -214,7 +214,7 @@ class MidBootstrapDecrypter:
 
       expected_cleartext = self.starting_cleartext
       if callback_lut:
-        expected_cleartext = callback_lut[self.starting_cleartext]
+        expected_cleartext = callback_lut[self.starting_cleartext]  # pyrefly: ignore[bad-index]
       if expected_cleartext != cleartext_post_sample_extract:
         print(
             f"DECRYPTION_FAILURE: expected {expected_cleartext} "
@@ -245,7 +245,7 @@ class MidBootstrapDecrypter:
 
       expected_cleartext = self.starting_cleartext
       if callback_lut:
-        expected_cleartext = callback_lut[self.starting_cleartext]
+        expected_cleartext = callback_lut[self.starting_cleartext]  # pyrefly: ignore[bad-index]
       if expected_cleartext != cleartext_post_key_switch:
         print(
             f"DECRYPTION_FAILURE: expected {expected_cleartext} "

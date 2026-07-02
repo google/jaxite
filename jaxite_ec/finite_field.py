@@ -958,7 +958,7 @@ def add_sub_rns_var(*values, moduli_t=util.RNS_MODULI_T):
   assert len(values) < 256
   moduli_t = jnp.array(moduli_t, dtype=jnp.uint8)
   # u1 < 254
-  u1, l1 = split_view_32_to_16_8(acc)
+  u1, l1 = split_view_32_to_16_8(acc)  # pyrefly: ignore[bad-argument-type]
   # i1 < 2**16 - 1 + 255t < 2**17 - t for 8 bit t
   i1 = jnp.add(
       jnp.multiply(u1.astype(np.uint16), moduli_t).astype(jnp.uint32),

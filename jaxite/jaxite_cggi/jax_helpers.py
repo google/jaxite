@@ -92,7 +92,7 @@ def batch_vmap(
       out = tree_map(postprocess, loop_out, tail_out, out_axes)
     return out
 
-  return g
+  return g  # pyrefly: ignore[bad-return]
 
 
 def get_tpu_version() -> int:

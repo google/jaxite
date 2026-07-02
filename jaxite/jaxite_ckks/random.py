@@ -85,4 +85,4 @@ class TestRandomSource(SecureRandomSource):
 
   def __init__(self, seed: int):
     import random as std_random
-    self.rng = std_random.Random(seed)
+    self.rng = std_random.Random(seed)  # pyrefly: ignore[bad-assignment]

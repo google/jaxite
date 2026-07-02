@@ -30,7 +30,7 @@ class BootstrapBaseTest(parameterized.TestCase):
 
   def __init__(self, *args, **kwargs):
     super(BootstrapBaseTest, self).__init__(*args, **kwargs)
-    self.callback: Callable[[str, Any], None] = None
+    self.callback: Callable[[str, Any], None] = None  # pyrefly: ignore[bad-assignment]
 
   def run_bootstrap_test(
       self,
