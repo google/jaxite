@@ -1,6 +1,7 @@
 """A module containing JAX helper code."""
 
 import functools
+import re
 from typing import Any, Callable, Sequence, TypeVar
 import jax
 import jax.numpy as jnp
@@ -98,9 +99,7 @@ def batch_vmap(
 def get_tpu_version() -> int:
   """Returns the numeric version of the TPU, or -1 if not on TPU."""
   kind = jax.devices()[0].device_kind
-  if 'TPU' not in kind:
-    return -1
-  if kind.endswith(' lite'):
-    kind = kind[: -len(' lite')]
-  assert kind[:-1] == 'TPU v', kind
-  return int(kind[-1])
+  # Matches 'TPU' followed by optional spaces, optional 'v', and captures
+  # one or more digits.
+  match = re.search(r'TPU\s*v?(\d+)', kind, re.IGNORECASE)
+  return int(match.group(1)) if match else -1
