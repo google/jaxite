@@ -104,3 +104,18 @@ def get_bit_reverse_perm(n: int) -> list[int]:
       temp >>= 1
     perm[i] = r
   return perm
+
+
+def compute_tpu_block_sizes(degree: int, block_size: int) -> tuple[int, int]:
+  """Computes block_size and num_blocks for TPU vectorization optimization.
+
+  Args:
+    degree: The polynomial degree.
+    block_size: The target block size.
+
+  Returns:
+    A tuple of (block_size, num_blocks).
+  """
+  if degree >= block_size:
+    return block_size, degree // block_size
+  return degree, 1

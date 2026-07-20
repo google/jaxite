@@ -4,6 +4,7 @@ import math
 import jax
 import jax.numpy as jnp
 from jaxite.jaxite_ckks import basis_conversion
+from jaxite.jaxite_ckks import math as ckks_math
 from jaxite.jaxite_ckks import ntt
 from jaxite.jaxite_ckks import types
 
@@ -66,9 +67,12 @@ def lift_ciphertext(
   Returns:
     A lifted Ciphertext under PQ. Shape (num_elements, degree, num_Q + num_P).
   """
-  # 1. Reshape ct.data to (num_elements, r, c, num_q) for INTT
+  # 1. Reshape ct.data to (num_elements, num_blocks, r, c, num_q) for INTT
   num_elements, degree, num_q = ct.data.shape
-  ct_data_reshaped = ct.data.reshape(num_elements, r, c, num_q)
+  if degree % (r * c) != 0:
+    raise ValueError(f"degree ({degree}) must be a multiple of r * c ({r * c})")
+  _, num_blocks = ckks_math.compute_tpu_block_sizes(degree, r * c)
+  ct_data_reshaped = ct.data.reshape(num_elements, num_blocks, r, c, num_q)
 
   # 2. Convert ct.data to coefficient domain modulo Q
   ct_coef_q = ntt_q.intt(ct_data_reshaped)
@@ -80,9 +84,11 @@ def lift_ciphertext(
       ct_coef_q_flat, control_index=control_index
   )
 
-  # 4. Reshape data_p_coef to (num_elements, r, c, num_p) for NTT
+  # 4. Reshape data_p_coef to (num_elements, num_blocks, r, c, num_p) for NTT
   num_p = len(p_limbs)
-  data_p_coef_reshaped = data_p_coef.reshape(num_elements, r, c, num_p)
+  data_p_coef_reshaped = data_p_coef.reshape(
+      num_elements, num_blocks, r, c, num_p
+  )
 
   # 5. Convert data_p_coef to NTT domain modulo P
   data_p_ntt = ntt_p.ntt(data_p_coef_reshaped)

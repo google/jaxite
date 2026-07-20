@@ -67,10 +67,7 @@ class Rotate:
     """Precomputes constants and sub-kernels for rotation."""
     all_moduli = q_limbs + p_limbs
 
-    # 1. Precompute KeySwitcher constants
-    self.key_switcher.precompute_constants(q_limbs, p_limbs, dnum, r, c)
-
-    # 2. Precompute BasisConversion constants
+    # 1. Precompute BasisConversion constants
     limbs_per_part = math.ceil(len(q_limbs) / dnum)
     bc_pairs = []
     for i in range(dnum):
@@ -81,13 +78,24 @@ class Rotate:
       bc_pairs.append((in_indices, out_indices))
     self.bc_kernel.precompute_constants(all_moduli, bc_pairs)
 
-    # 3. Precompute Mul constants
+    # 2. Precompute Mul constants
     mul_constants = barrett.precompute_barrett_constants(all_moduli)
     self.mul_kernel = mul.MulPlaintextCiphertextBarrett(mul_constants)
 
-    # 4. Precompute Rescale constants
+    # 3. Precompute Rescale constants
     self.rescale_kernel.precompute_constants(
         all_moduli, num_rescales=num_rescales, r=r, c=c
+    )
+
+    # 4. Precompute KeySwitcher constants
+    self.key_switcher.precompute_constants(
+        q_limbs,
+        p_limbs,
+        dnum,
+        r,
+        c,
+        bc_kernel=self.bc_kernel,
+        mul_kernel=self.mul_kernel,
     )
 
   def rotate(
@@ -95,7 +103,6 @@ class Rotate:
       ct: types.Ciphertext,
       rot_key: types.EvaluationKeys,
       j: int,
-      p_limbs: jax.Array,
       control_index: int = 0,
   ) -> types.Ciphertext:
     """Homomorphically rotates a CKKS ciphertext by j slots.
@@ -104,7 +111,6 @@ class Rotate:
       ct: The input ciphertext (c0, c1) under Q.
       rot_key: The key switching key from s(X^g) to s(X).
       j: The rotation amount (number of slots).
-      p_limbs: The limbs of the auxiliary modulus P.
       control_index: The control index for basis conversion Q -> P.
 
     Returns:
@@ -121,9 +127,6 @@ class Rotate:
     ct_switched = self.key_switcher.key_switch(
         ct=ct_rot,
         ksk=rot_key,
-        p_limbs=p_limbs,
-        bc_kernel=self.bc_kernel,
-        mul_kernel=self.mul_kernel,
         start_control_index=control_index,
     )
 

@@ -164,6 +164,8 @@ class KeySwitchingTest(parameterized.TestCase):
         dnum=dnum,
         r=4,
         c=4,
+        bc_kernel=bc_kernel,
+        mul_kernel=mul_kernel,
     )
 
     # 4. Encrypt some message under source_sk
@@ -179,9 +181,6 @@ class KeySwitchingTest(parameterized.TestCase):
     ct_switched = key_switcher.key_switch(
         ct=ct_in,
         ksk=ksk,
-        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
-        bc_kernel=bc_kernel,
-        mul_kernel=mul_kernel,
         start_control_index=0,
     )
 

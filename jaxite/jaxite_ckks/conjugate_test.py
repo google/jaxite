@@ -4,7 +4,6 @@ import math
 
 import hypothesis
 from hypothesis import strategies as st
-import jax.numpy as jnp
 from jaxite.jaxite_ckks import barrett
 from jaxite.jaxite_ckks import basis_conversion
 from jaxite.jaxite_ckks import conjugate
@@ -75,6 +74,9 @@ class ConjugateTest(parameterized.TestCase):
         dnum=dnum,
         r=4,
         c=4,
+        bc_kernel=bc_kernel,
+        mul_kernel=mul_kernel,
+        rescale_kernel=rescale_kernel,
     )
 
     if mu is None:
@@ -91,10 +93,6 @@ class ConjugateTest(parameterized.TestCase):
     ct_res = conjugate_kernel.conjugate(
         ct=ct_in,
         conj_key=conj_key,
-        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
-        bc_kernel=bc_kernel,
-        mul_kernel=mul_kernel,
-        rescale_kernel=rescale_kernel,
         start_control_index=0,
     )
 
@@ -219,7 +217,14 @@ class ConjugateTest(parameterized.TestCase):
 
     conjugate_kernel = conjugate.Conjugation()
     conjugate_kernel.precompute_constants(
-        q_limbs=q_limbs, p_limbs=p_limbs, dnum=1, r=4, c=4
+        q_limbs=q_limbs,
+        p_limbs=p_limbs,
+        dnum=1,
+        r=4,
+        c=4,
+        bc_kernel=bc_kernel,
+        mul_kernel=mul_kernel,
+        rescale_kernel=rescale_kernel,
     )
 
     mu = np.array(
@@ -235,20 +240,12 @@ class ConjugateTest(parameterized.TestCase):
     ct_conj = conjugate_kernel.conjugate(
         ct=ct_in,
         conj_key=conj_key,
-        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
-        bc_kernel=bc_kernel,
-        mul_kernel=mul_kernel,
-        rescale_kernel=rescale_kernel,
         start_control_index=0,
     )
 
     ct_conj_conj = conjugate_kernel.conjugate(
         ct=ct_conj,
         conj_key=conj_key,
-        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
-        bc_kernel=bc_kernel,
-        mul_kernel=mul_kernel,
-        rescale_kernel=rescale_kernel,
         start_control_index=0,
     )
 

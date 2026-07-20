@@ -178,7 +178,6 @@ class BlindRotateTest(parameterized.TestCase):
     ct_res = brot_kernel.brot_mux(
         ct_in=ct_in,
         mux_key=mux_key,
-        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
         control_index=0,
     )
 
@@ -280,7 +279,6 @@ class BlindRotateTest(parameterized.TestCase):
         cmkey_hybrid=cmkey_hybrid,
         mmkey_hybrid=mmkey_hybrid,
         theta=theta,
-        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
         control_index=0,
     )
 
@@ -372,7 +370,6 @@ class BlindRotateTest(parameterized.TestCase):
     ct_r = brot_kernel.brot_mux(
         ct_in=ct_in,
         mux_key=mux_key_r,
-        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
         control_index=0,
     )
 
@@ -380,7 +377,6 @@ class BlindRotateTest(parameterized.TestCase):
     ct_final = brot_kernel.brot_mux(
         ct_in=ct_r,
         mux_key=mux_key_len_minus_r,
-        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
         control_index=0,
     )
 
@@ -528,7 +524,6 @@ class BlindRotationHypothesisTest(absltest.TestCase):
     ct_res = self.brot_kernel.brot_mux(
         ct_in=ct_in,
         mux_key=self.mux_key,
-        p_limbs=jnp.array(self.P_LIMBS, dtype=jnp.uint32),
         control_index=0,
     )
 
@@ -572,7 +567,6 @@ class BlindRotationHypothesisTest(absltest.TestCase):
         cmkey_hybrid=self.cmkey_hybrid,
         mmkey_hybrid=self.mmkey_hybrid,
         theta=self.THETA,
-        p_limbs=jnp.array(self.P_LIMBS, dtype=jnp.uint32),
         control_index=0,
     )
 

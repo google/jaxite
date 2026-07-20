@@ -77,7 +77,6 @@ class RotateTest(parameterized.TestCase):
         ct=ct,
         rot_key=rot_key,
         j=shift,
-        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
     )
 
     # 4. Decrypt and decode
@@ -153,7 +152,6 @@ class RotateTest(parameterized.TestCase):
         ct=ct,
         rot_key=rot_key_j,
         j=shift,
-        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
     )
 
     # Rotate by n - j
@@ -161,7 +159,6 @@ class RotateTest(parameterized.TestCase):
         ct=ct_rot1,
         rot_key=rot_key_n_minus_j,
         j=n - shift,
-        p_limbs=jnp.array(p_limbs, dtype=jnp.uint32),
     )
 
     # 4. Decrypt and decode

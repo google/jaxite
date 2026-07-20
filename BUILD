@@ -702,8 +702,26 @@ cpu_gpu_tpu_test(
 )
 
 cpu_gpu_tpu_test(
+    name = "key_switching_test",
+    size = "small",
+    timeout = "long",
+    srcs = ["jaxite/jaxite_ckks/key_switching_test.py"],
+    main = "jaxite/jaxite_ckks/key_switching_test.py",
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//hypothesis",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+cpu_gpu_tpu_test(
     name = "blind_rotate_utils_test",
     size = "small",
+    timeout = "long",
     srcs = ["jaxite/jaxite_ckks/blind_rotate_utils_test.py"],
     main = "jaxite/jaxite_ckks/blind_rotate_utils_test.py",
     deps = [

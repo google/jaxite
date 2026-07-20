@@ -31,15 +31,21 @@ from jaxite.jaxite_ckks import types
 class BlindRotation:
   """Kernel for homomorphic blind rotation on TPU."""
 
-  def __init__(self):
-    self.key_switcher = key_switching.KeySwitcher()
-    self.bc_kernel = basis_conversion.BasisConversionBarrett()
-    self.mul_kernel = mul.MulPlaintextCiphertextBarrett(None)  # pyrefly: ignore[bad-argument-type]
-    self.rescale_kernel = rescale.Rescale()
-    self.ntt_q = ntt.NTTBarrett()
-    self.ntt_p = ntt.NTTBarrett()
+  key_switcher: key_switching.KeySwitcher
+  bc_kernel: basis_conversion.BasisConversionBarrett
+  mul_kernel: mul.MulPlaintextCiphertextBarrett
+  rescale_kernel: rescale.Rescale
+  ntt_q: ntt.NTTBarrett
+  ntt_p: ntt.NTTBarrett
+
+  q_limbs: jax.Array
+  p_limbs: jax.Array
+  all_moduli: jax.Array
+  q_limbs_u64_expanded: jax.Array
+  all_moduli_u64_expanded: jax.Array
 
   def tree_flatten(self):
+    """Flattens the BlindRotation object for JAX PyTree serialization."""
     children = (
         self.key_switcher,
         self.bc_kernel,
@@ -47,12 +53,18 @@ class BlindRotation:
         self.rescale_kernel,
         self.ntt_q,
         self.ntt_p,
+        self.q_limbs,
+        self.p_limbs,
+        self.all_moduli,
+        self.q_limbs_u64_expanded,
+        self.all_moduli_u64_expanded,
     )
     aux_data = None
     return (children, aux_data)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
+    """Unflattens the BlindRotation object for JAX PyTree serialization."""
     del aux_data
     obj = cls()
     obj.key_switcher = children[0]
@@ -61,6 +73,11 @@ class BlindRotation:
     obj.rescale_kernel = children[3]
     obj.ntt_q = children[4]
     obj.ntt_p = children[5]
+    obj.q_limbs = children[6]
+    obj.p_limbs = children[7]
+    obj.all_moduli = children[8]
+    obj.q_limbs_u64_expanded = children[9]
+    obj.all_moduli_u64_expanded = children[10]
     return obj
 
   def precompute_constants(
@@ -75,14 +92,25 @@ class BlindRotation:
     """Precomputes constants and sub-kernels for blind rotation."""
     all_moduli = q_limbs + p_limbs
 
+    # Store moduli as JAX arrays
+    self.q_limbs = jnp.array(q_limbs, dtype=jnp.uint32)
+    self.p_limbs = jnp.array(p_limbs, dtype=jnp.uint32)
+    self.all_moduli = jnp.array(all_moduli, dtype=jnp.uint32)
+
+    self.q_limbs_u64_expanded = jnp.array(q_limbs, dtype=jnp.uint64).reshape(
+        1, 1, -1
+    )
+    self.all_moduli_u64_expanded = jnp.array(
+        all_moduli, dtype=jnp.uint64
+    ).reshape(1, 1, -1)
+
     # 1. Precompute NTT kernels
+    self.ntt_q = ntt.NTTBarrett()
     self.ntt_q.precompute_constants(q_limbs, r, c)
+    self.ntt_p = ntt.NTTBarrett()
     self.ntt_p.precompute_constants(p_limbs, r, c)
 
-    # 2. Precompute KeySwitcher constants
-    self.key_switcher.precompute_constants(q_limbs, p_limbs, dnum, r, c)
-
-    # 3. Precompute BasisConversion constants
+    # 2. Precompute BasisConversion constants
     limbs_per_part = math.ceil(len(q_limbs) / dnum)
     bc_pairs = []
     for i in range(dnum):
@@ -91,15 +119,29 @@ class BlindRotation:
       in_indices = list(range(start_idx, end_idx))
       out_indices = [j for j in range(len(all_moduli)) if j not in in_indices]
       bc_pairs.append((in_indices, out_indices))
+    self.bc_kernel = basis_conversion.BasisConversionBarrett()
     self.bc_kernel.precompute_constants(all_moduli, bc_pairs)
 
-    # 4. Precompute Mul constants
+    # 3. Precompute Mul constants
     mul_constants = barrett.precompute_barrett_constants(all_moduli)
     self.mul_kernel = mul.MulPlaintextCiphertextBarrett(mul_constants)
 
-    # 5. Precompute Rescale constants
+    # 4. Precompute Rescale constants
+    self.rescale_kernel = rescale.Rescale()
     self.rescale_kernel.precompute_constants(
         all_moduli, num_rescales=num_rescales, r=r, c=c
+    )
+
+    # 5. Precompute KeySwitcher constants
+    self.key_switcher = key_switching.KeySwitcher()
+    self.key_switcher.precompute_constants(
+        q_limbs,
+        p_limbs,
+        dnum,
+        r,
+        c,
+        bc_kernel=self.bc_kernel,
+        mul_kernel=self.mul_kernel,
     )
 
   def hmuxrot(
@@ -107,7 +149,6 @@ class BlindRotation:
       ct: types.Ciphertext,
       hmrkey: types.HMuxRotKey,
       j: int,
-      p_limbs: jax.Array,
       control_index: int = 0,
   ) -> types.Ciphertext:
     """Evaluates HMuxRot^(j)(hmrkey_beta, ct)."""
@@ -140,30 +181,21 @@ class BlindRotation:
     ct_prod0 = self.key_switcher.key_switch(
         ct=ct_c1,
         ksk=ksk0,
-        p_limbs=p_limbs,
-        bc_kernel=self.bc_kernel,
-        mul_kernel=self.mul_kernel,
         start_control_index=control_index,
     )
     ct_prod1 = self.key_switcher.key_switch(
         ct=ct_c0,
         ksk=ksk1,
-        p_limbs=p_limbs,
-        bc_kernel=self.bc_kernel,
-        mul_kernel=self.mul_kernel,
         start_control_index=control_index,
     )
-
-    all_moduli = ct_prod0.moduli
-    all_moduli_u64 = all_moduli.astype(jnp.uint64).reshape(1, 1, -1)
 
     sum_data = ct_prod0.data.astype(jnp.uint64) + ct_prod1.data.astype(
         jnp.uint64
     )
-    sum_reduced = sum_data % all_moduli_u64
+    sum_reduced = sum_data % self.all_moduli_u64_expanded
 
     ct_sum = types.Ciphertext(
-        data=sum_reduced.astype(jnp.uint32), moduli=all_moduli
+        data=sum_reduced.astype(jnp.uint32), moduli=self.all_moduli
     )
 
     self.rescale_kernel.rescale(ct_sum)
@@ -173,7 +205,6 @@ class BlindRotation:
       self,
       ct_in: types.Ciphertext,
       mux_key: types.MuxRotationKey,
-      p_limbs: jax.Array,
       control_index: int = 0,
       stride: int = 1,
   ) -> types.Ciphertext:
@@ -188,7 +219,6 @@ class BlindRotation:
     Args:
       ct_in: The input ciphertext under Q.
       mux_key: The MuxRotationKey containing the keys for each bit.
-      p_limbs: The limbs of the auxiliary modulus P.
       control_index: The control index for basis conversion Q -> P.
       stride: The stride to scale the rotation amount by. Defaults to 1.
 
@@ -205,7 +235,6 @@ class BlindRotation:
           ct=ct_out,
           hmrkey=hmrkey_jk_0,
           j=(2**k) * stride,
-          p_limbs=p_limbs,
           control_index=control_index,
       )
       # Algorithm 3, Step 4: ct1 <- HMuxRot_0(hmrkey_{1 - j_k}, ct_out)
@@ -213,19 +242,17 @@ class BlindRotation:
           ct=ct_out,
           hmrkey=hmrkey_not_jk_1,
           j=0,
-          p_limbs=p_limbs,
           control_index=control_index,
       )
       # Algorithm 3, Step 5: ct_out <- ct0 + ct1
-      moduli_expanded = jnp.array(ct0.moduli, dtype=jnp.uint64).reshape(
-          1, 1, -1
-      )
       sum_data = ct0.data.astype(jnp.uint64) + ct1.data.astype(jnp.uint64)
       sum_reduced = jnp.where(
-          sum_data >= moduli_expanded, sum_data - moduli_expanded, sum_data
+          sum_data >= self.q_limbs_u64_expanded,
+          sum_data - self.q_limbs_u64_expanded,
+          sum_data,
       )
       ct_out = types.Ciphertext(
-          data=sum_reduced.astype(jnp.uint32), moduli=ct0.moduli
+          data=sum_reduced.astype(jnp.uint32), moduli=self.q_limbs
       )
 
     # Algorithm 3, Step 7: return ct_out
@@ -284,7 +311,6 @@ class BlindRotation:
       cmkey_hybrid: list[list[types.Ciphertext]],
       mmkey_hybrid: types.MuxRotationKey,
       theta: int,
-      p_limbs: jax.Array,
       control_index: int = 0,
   ) -> types.Ciphertext:
     """Homomorphic Blind Rotation using the Hybrid Method (BRotHybrid)."""
@@ -324,8 +350,10 @@ class BlindRotation:
 
       ct_data_all = jnp.stack([ct.data for ct in cmkeys_k], axis=0)
 
-      batch_ct = types.Ciphertext(data=ct_data_all, moduli=cmkeys_k[0].moduli)
-      batch_pt = types.Plaintext(data=pt_rot_all_expanded, moduli=pt_k.moduli)
+      batch_ct = types.Ciphertext(data=ct_data_all, moduli=self.all_moduli)
+      batch_pt = types.Plaintext(
+          data=pt_rot_all_expanded, moduli=self.all_moduli
+      )
 
       batch_ct_mul = self.mul_kernel.mul(batch_ct, batch_pt)
       products.append(batch_ct_mul.data)
@@ -341,7 +369,7 @@ class BlindRotation:
 
     ct_giant = types.Ciphertext(
         data=reduced_data.astype(jnp.uint32),
-        moduli=cmkey_hybrid[0][0].moduli,
+        moduli=self.all_moduli,
     )
 
     # Algorithm 4, Step 7: ct <- Rescale_P(ct)
@@ -355,7 +383,6 @@ class BlindRotation:
     return self.brot_mux(
         ct_in=ct_giant,
         mux_key=mmkey_hybrid,
-        p_limbs=p_limbs,
         control_index=control_index,
         stride=theta,
     )
