@@ -37,6 +37,7 @@ class KeySwitcher:
   p_limbs: jax.Array
   bc_kernel: basis_conversion.BasisConversionBarrett
   mul_kernel: mul.MulPlaintextCiphertextBarrett
+  p_mod_q: jax.Array
 
   def precompute_constants(
       self,
@@ -54,6 +55,12 @@ class KeySwitcher:
 
     self.ntt_kernels_q = []
     self.ntt_kernels_out = []
+
+    p_mod_q_val = [1] * len(q_limbs)
+    for i, q in enumerate(q_limbs):
+      for p in p_limbs:
+        p_mod_q_val[i] = (p_mod_q_val[i] * (p % q)) % q
+    self.p_mod_q = jnp.array(p_mod_q_val, dtype=jnp.uint64)
 
     for i in range(dnum):
       start_idx = i * limbs_per_part
@@ -85,6 +92,7 @@ class KeySwitcher:
         self.p_limbs,
         self.bc_kernel,
         self.mul_kernel,
+        self.p_mod_q,
     )
     aux_data = None
     return (children, aux_data)
@@ -98,6 +106,7 @@ class KeySwitcher:
     obj.p_limbs = children[2]
     obj.bc_kernel = children[3]
     obj.mul_kernel = children[4]
+    obj.p_mod_q = children[5]
     return obj
 
   def key_switch(
@@ -196,13 +205,9 @@ class KeySwitcher:
       c1_ks = (c1_ks + c1_ks_part.data.astype(jnp.uint64)) % all_moduli_u64
 
     # Scale c0 by P
-    p_mod_q = jnp.ones_like(q_limbs, dtype=jnp.uint64)
-    for p in self.p_limbs:
-      p_mod_q = (p_mod_q * (p % q_limbs).astype(jnp.uint64)) % q_limbs.astype(
-          jnp.uint64
-      )
+
     c0_scaled_q = (
-        c0.astype(jnp.uint64) * p_mod_q.astype(jnp.uint64).reshape(1, -1)
+        c0.astype(jnp.uint64) * self.p_mod_q.reshape(1, -1)
     ) % q_limbs.astype(jnp.uint64).reshape(1, -1)
     c0_scaled_p = jnp.zeros((degree, self.p_limbs.shape[0]), dtype=jnp.uint32)
     c0_scaled_qp = jnp.concatenate(

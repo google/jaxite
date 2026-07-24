@@ -237,7 +237,7 @@ class CrossEquivalenceTest(absltest.TestCase):
     evk_a_precomp = jnp.concatenate([evk_a[..., :5], evk_a[..., -2:]], axis=-1)
     evk_b_precomp = jnp.concatenate([evk_b[..., :5], evk_b[..., -2:]], axis=-1)
 
-    evk = mul.EvaluationKeys(
+    evk = types.EvaluationKeys(
         evk_a_precomp,
         evk_b_precomp,
         jnp.array(q_towers[:-1] + p_towers, dtype=jnp.uint64),

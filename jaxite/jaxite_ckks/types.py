@@ -2,6 +2,7 @@
 
 import dataclasses
 import jax
+import jax.numpy as jnp
 import numpy as np
 
 
@@ -12,6 +13,12 @@ class Plaintext:
 
   data: jax.Array  # Shape (degree, num_moduli)
   moduli: jax.Array
+
+  def __post_init__(self):
+    if not isinstance(self.data, jax.Array):
+      object.__setattr__(self, "data", jnp.asarray(self.data))
+    if not isinstance(self.moduli, jax.Array):
+      object.__setattr__(self, "moduli", jnp.asarray(self.moduli))
 
   def tree_flatten(self):
     return (self.data, self.moduli), None
@@ -28,6 +35,12 @@ class Ciphertext:
 
   data: jax.Array  # Shape (num_elements, degree, num_moduli)
   moduli: jax.Array
+
+  def __post_init__(self):
+    if not isinstance(self.data, jax.Array):
+      object.__setattr__(self, "data", jnp.asarray(self.data))
+    if not isinstance(self.moduli, jax.Array):
+      object.__setattr__(self, "moduli", jnp.asarray(self.moduli))
 
   def tree_flatten(self):
     return (self.data, self.moduli), None
@@ -53,6 +66,7 @@ class SecretKey:
   moduli: np.ndarray
 
 
+@jax.tree_util.register_pytree_node_class
 @dataclasses.dataclass(frozen=True)
 class EvaluationKeys:
   """CKKS Evaluation Keys."""
@@ -60,6 +74,13 @@ class EvaluationKeys:
   a: jax.Array
   b: jax.Array
   moduli: jax.Array
+
+  def tree_flatten(self):
+    return (self.a, self.b, self.moduli), ()
+
+  @classmethod
+  def tree_unflatten(cls, _, children):
+    return cls(*children)
 
 
 @jax.tree_util.register_pytree_node_class

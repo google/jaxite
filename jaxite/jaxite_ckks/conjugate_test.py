@@ -77,6 +77,8 @@ class ConjugateTest(parameterized.TestCase):
         bc_kernel=bc_kernel,
         mul_kernel=mul_kernel,
         rescale_kernel=rescale_kernel,
+        conj_key=conj_key,
+        start_control_index=0,
     )
 
     if mu is None:
@@ -92,8 +94,6 @@ class ConjugateTest(parameterized.TestCase):
 
     ct_res = conjugate_kernel.conjugate(
         ct=ct_in,
-        conj_key=conj_key,
-        start_control_index=0,
     )
 
     decryptor_q = encrypt.Decrypt(sk_q)
@@ -225,6 +225,8 @@ class ConjugateTest(parameterized.TestCase):
         bc_kernel=bc_kernel,
         mul_kernel=mul_kernel,
         rescale_kernel=rescale_kernel,
+        conj_key=conj_key,
+        start_control_index=0,
     )
 
     mu = np.array(
@@ -239,14 +241,10 @@ class ConjugateTest(parameterized.TestCase):
 
     ct_conj = conjugate_kernel.conjugate(
         ct=ct_in,
-        conj_key=conj_key,
-        start_control_index=0,
     )
 
     ct_conj_conj = conjugate_kernel.conjugate(
         ct=ct_conj,
-        conj_key=conj_key,
-        start_control_index=0,
     )
 
     decryptor_q = encrypt.Decrypt(sk_q)

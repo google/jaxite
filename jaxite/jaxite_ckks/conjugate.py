@@ -29,6 +29,8 @@ class Conjugation:
 
   key_switcher: key_switching.KeySwitcher
   rescale_kernel: rescale.Rescale
+  conj_key: types.EvaluationKeys
+  start_control_index: int
 
   def precompute_constants(
       self,
@@ -40,6 +42,8 @@ class Conjugation:
       bc_kernel: basis_conversion.BasisConversionBarrett,
       mul_kernel: mul.MulPlaintextCiphertextBarrett,
       rescale_kernel: rescale.Rescale,
+      conj_key: types.EvaluationKeys,
+      start_control_index: int,
   ):
     self.key_switcher = key_switching.KeySwitcher()
     self.key_switcher.precompute_constants(
@@ -52,26 +56,24 @@ class Conjugation:
         mul_kernel=mul_kernel,
     )
     self.rescale_kernel = rescale_kernel
+    self.conj_key = conj_key
+    self.start_control_index = start_control_index
 
   def tree_flatten(self):
-    children = (self.key_switcher, self.rescale_kernel)
-    aux_data = None
+    children = (self.key_switcher, self.rescale_kernel, self.conj_key)
+    aux_data = (self.start_control_index,)
     return (children, aux_data)
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):
-    del aux_data
     obj = cls()
     obj.key_switcher = children[0]
     obj.rescale_kernel = children[1]
+    obj.conj_key = children[2]
+    obj.start_control_index = aux_data[0]
     return obj
 
-  def conjugate(
-      self,
-      ct: types.Ciphertext,
-      conj_key: types.EvaluationKeys,
-      start_control_index: int,
-  ) -> types.Ciphertext:
+  def conjugate(self, ct: types.Ciphertext) -> types.Ciphertext:
     """Homomorphically conjugates a CKKS ciphertext."""
     # 1. Apply automorphism X -> X^-1 by flipping along the degree dimension
     ct_conj = types.Ciphertext(
@@ -82,8 +84,8 @@ class Conjugation:
     # 2. Key Switch: convert ct_conj from Q to P
     ct_prime = self.key_switcher.key_switch(
         ct=ct_conj,
-        ksk=conj_key,
-        start_control_index=start_control_index,
+        ksk=self.conj_key,
+        start_control_index=self.start_control_index,
     )
 
     # 3. Rescale by P to drop auxiliary modulus and divide by P

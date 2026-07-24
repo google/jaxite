@@ -1,7 +1,6 @@
 """Multiplication and Relinearization kernels for CKKS."""
 
 import abc
-import dataclasses
 from typing import Callable, Iterable, Optional
 import jax
 import jax.numpy as jnp
@@ -35,9 +34,9 @@ class MulPlaintextCiphertextSimple(MulPlaintextCiphertextBase):
     pass
 
   def mul(self, ct: types.Ciphertext, pt: types.Plaintext) -> types.Ciphertext:
-    if ct.moduli.tolist() != pt.moduli.tolist():
-      raise ValueError("Moduli of ciphertext and plaintext must match.")
-    # Broadcast pt.data to match ct.data shape (num_elements, degree, num_moduli)
+
+    # Broadcast pt.data to match ct.data shape
+    # (num_elements, degree, num_moduli)
     # pt.data has shape (degree, num_moduli)
     return types.Ciphertext(data=ct.data * pt.data, moduli=ct.moduli)
 
@@ -45,7 +44,7 @@ class MulPlaintextCiphertextSimple(MulPlaintextCiphertextBase):
     return (), None
 
   @classmethod
-  def tree_unflatten(cls, _, _children):
+  def tree_unflatten(cls, unused_aux, unused_children):
     return cls()
 
 
@@ -72,14 +71,14 @@ class MulPlaintextCiphertextBarrett(MulPlaintextCiphertextBase):
   def mul(self, ct: types.Ciphertext, pt: types.Plaintext) -> types.Ciphertext:
     if self.barrett_constants is None:
       raise ValueError("Constants must be precomputed first.")
-    if ct.moduli.tolist() != pt.moduli.tolist():
-      raise ValueError("Moduli of ciphertext and plaintext must match.")
+
     # Cast to uint64 to prevent overflow during multiplication
     prod = ct.data.astype(jnp.uint64) * pt.data.astype(jnp.uint64)
     # Barrett reduction expects z and constants.
     # constants.m, constants.moduli, etc. have shape (num_moduli,)
     # prod has shape (num_elements, degree, num_moduli)
-    # JAX will broadcast constants to match prod shape during operations in modular_reduction.
+    # JAX will broadcast constants to match prod shape during operations
+    # in modular_reduction.
     reduced = barrett.modular_reduction(prod, self.barrett_constants)
     # Cast back to uint32 explicitly
     return types.Ciphertext(
@@ -94,25 +93,6 @@ class MulPlaintextCiphertextBarrett(MulPlaintextCiphertextBase):
   def tree_unflatten(cls, _, children):
     obj = cls(children[0])
     return obj
-
-
-@jax.tree_util.register_pytree_node_class
-@dataclasses.dataclass(frozen=True)
-class EvaluationKeys:
-  """Evaluation keys for relinearization."""
-
-  a: jax.Array  # Shape (dnum, degree, num_moduli)
-  b: jax.Array
-  moduli: jax.Array
-
-  def tree_flatten(self):
-    """Flatten EvaluationKey into its children and auxiliary data."""
-    return (self.a, self.b, self.moduli), ()
-
-  @classmethod
-  def tree_unflatten(cls, _, children):
-    """Reconstruct EvaluationKeys from auxiliary data and children."""
-    return cls(*children)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -378,7 +358,7 @@ class Mul:
     return Ciphertext(data, ct1.moduli)
 
   def relinearize(
-      self, ct_3elem: Ciphertext, evk: EvaluationKeys
+      self, ct_3elem: Ciphertext, evk: types.EvaluationKeys
   ) -> Ciphertext:
     """Performs relinearization on a 3-element ciphertext.
 

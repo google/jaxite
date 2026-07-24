@@ -126,7 +126,7 @@ class BasisConversionBarrett(BasisConversion):
       q_hat_mod_p = jnp.array(
           rns_utils.compute_q_hat_mod_p(original_moduli, target_moduli),
           dtype=jnp.uint64,
-      )
+      ).reshape(len(original_moduli), len(target_moduli))
 
       q_hat_mod_p_bat_raw = bat_utils.basis_aligned_transformation(
           q_hat_mod_p, target_moduli
