@@ -32,7 +32,7 @@ class Rotate:
   def __init__(self):
     self.key_switcher = key_switching.KeySwitcher()
     self.bc_kernel = basis_conversion.BasisConversionBarrett()
-    self.mul_kernel = mul.MulPlaintextCiphertextBarrett(None)
+    self.mul_kernel = mul.MulPlaintextCiphertextBarrett(None)  # pyrefly: ignore[bad-argument-type]
     self.rescale_kernel = rescale.Rescale()
 
   def tree_flatten(self):

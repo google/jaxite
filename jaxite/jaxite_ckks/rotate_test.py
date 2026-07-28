@@ -58,7 +58,7 @@ class RotateTest(parameterized.TestCase):
     # 2. Encode and encrypt input slots
     slots = [float(i % 128) for i in range(num_slots)]
     encoder = encode.Encode(degree, q_limbs, scale)
-    pt = encoder.encode(slots)
+    pt = encoder.encode(slots)  # pyrefly: ignore[bad-argument-type]
     encryptor = encrypt.Encrypt(pk)
     ct = encryptor.encrypt(pt, random_source=test_random_source)
 
@@ -132,7 +132,7 @@ class RotateTest(parameterized.TestCase):
     # 2. Encode and encrypt input slots
     slots = [float(i) for i in range(num_slots)]
     encoder = encode.Encode(degree, q_limbs, scale)
-    pt = encoder.encode(slots)
+    pt = encoder.encode(slots)  # pyrefly: ignore[bad-argument-type]
     encryptor = encrypt.Encrypt(pk)
     ct = encryptor.encrypt(pt, random_source=test_random_source)
 
