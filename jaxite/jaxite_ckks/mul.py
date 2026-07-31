@@ -50,23 +50,12 @@ class MulPlaintextCiphertextSimple(MulPlaintextCiphertextBase):
 
 @jax.tree_util.register_pytree_node_class
 class MulPlaintextCiphertextBarrett(MulPlaintextCiphertextBase):
-  """Kernel for plaintext-ciphertext multiplication using Barrett reduction.
+  """Plaintext-ciphertext multiplication using Barrett reduction on VPU."""
 
-  Note: This kernel will execute on the VPU by doing (barrett_reduce(ct * pt)).
-  During the blind rotation (bsk) multiplication with the plaintext, we want the
-  VPU executed version.
-  CROSS also implements an offline BAT on the plaintexts to utilize the MXU to
-  perform a pt-ct multiplication, but using this depends on the context.
+  barrett_constants: barrett.BarrettConstants = barrett.BarrettConstants()
 
-  Constraints on inputs:
-  1. ct.data and pt.data must contain non-negative integers.
-  2. For each corresponding element, the product must be strictly less
-     than m^2, where m is the corresponding modulus.
-  3. The moduli must be less than 2^31.
-  """
-
-  def __init__(self, barrett_constants: barrett.BarrettConstants):
-    self.barrett_constants = barrett_constants
+  def precompute_constants(self, moduli: list[int]):
+    self.barrett_constants = barrett.precompute_barrett_constants(moduli)
 
   def mul(self, ct: types.Ciphertext, pt: types.Plaintext) -> types.Ciphertext:
     if self.barrett_constants is None:
@@ -91,7 +80,8 @@ class MulPlaintextCiphertextBarrett(MulPlaintextCiphertextBase):
 
   @classmethod
   def tree_unflatten(cls, _, children):
-    obj = cls(children[0])
+    obj = cls()
+    obj.barrett_constants = children[0]
     return obj
 
 
@@ -193,7 +183,9 @@ class Mul:
     self.degree = r * c
     self.composite_degree = composite_degree
 
-    self.drop_last_moduli = self.original_moduli[:-composite_degree]
+    self.drop_last_moduli = self.original_moduli[
+        : len(self.original_moduli) - composite_degree
+    ]
     # Ensure all elements in drop_last_moduli and extend_moduli are strictly
     # less than 2**31 to avoid overflow in both `tensor_multiply` and
     # `relinearize`.
@@ -626,7 +618,9 @@ class Mul:
     obj.original_moduli = list(original_moduli)
     obj.extend_moduli = list(extend_moduli)
 
-    obj.drop_last_moduli = obj.original_moduli[: -obj.composite_degree]
+    obj.drop_last_moduli = obj.original_moduli[
+        : len(obj.original_moduli) - obj.composite_degree
+    ]
     obj.drop_last_extend_moduli = obj.drop_last_moduli + obj.extend_moduli
     obj.degree = obj.r * obj.c
     obj.is_initialized = True

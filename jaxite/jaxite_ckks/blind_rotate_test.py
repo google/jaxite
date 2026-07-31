@@ -162,7 +162,11 @@ class BlindRotateTest(parameterized.TestCase):
     encoder_q = encode.Encode(degree, q_limbs, scale)
     encryptor_q = encrypt.Encrypt(pk_q)
     plain_mu = encoder_q.encode(mu.tolist())
-    ct_in = encryptor_q.encrypt(plain_mu, random_source=test_random_source)
+    ct_in_raw = encryptor_q.encrypt(plain_mu, random_source=test_random_source)
+    ct_in = types.Ciphertext(
+        data=ct_in_raw.data,
+        moduli=jnp.array(ct_in_raw.moduli, dtype=jnp.uint64),
+    )
 
     # 4. Run homomorphic BRotMux
     brot_kernel = blind_rotate.BlindRotation()
@@ -261,7 +265,7 @@ class BlindRotateTest(parameterized.TestCase):
     pt2 = encoder_pq.encode(np.conj(w1_full).tolist())
     pt3 = encoder_pq.encode(w2_full.tolist())
     pt4 = encoder_pq.encode(np.conj(w2_full).tolist())
-    pts = [pt1, pt2, pt4, pt3]
+    pts = [pt1, pt2, pt3, pt4]
 
     # 3. Run homomorphic BRotHybrid using BlindRotation kernel class
     brot_kernel = blind_rotate.BlindRotation()
@@ -354,7 +358,11 @@ class BlindRotateTest(parameterized.TestCase):
     encoder_q = encode.Encode(degree, q_limbs, scale)
     encryptor_q = encrypt.Encrypt(pk_q)
     plain_mu = encoder_q.encode(mu.tolist())
-    ct_in = encryptor_q.encrypt(plain_mu, random_source=test_random_source)
+    ct_in_raw = encryptor_q.encrypt(plain_mu, random_source=test_random_source)
+    ct_in = types.Ciphertext(
+        data=ct_in_raw.data,
+        moduli=jnp.array(ct_in_raw.moduli, dtype=jnp.uint64),
+    )
 
     # 4. Perform first rotation by r
     brot_kernel = blind_rotate.BlindRotation()
@@ -517,8 +525,12 @@ class BlindRotationHypothesisTest(absltest.TestCase):
   def test_brot_mux_hypothesis(self, slots):
     mu = np.array(slots, dtype=complex)
     pt_mu = self.encoder_q.encode(mu.tolist())
-    ct_in = self.encryptor_q.encrypt(
+    ct_in_raw = self.encryptor_q.encrypt(
         pt_mu, random_source=self.test_random_source
+    )
+    ct_in = types.Ciphertext(
+        data=ct_in_raw.data,
+        moduli=jnp.array(ct_in_raw.moduli, dtype=jnp.uint64),
     )
 
     ct_res = self.brot_kernel.brot_mux(
@@ -560,7 +572,7 @@ class BlindRotationHypothesisTest(absltest.TestCase):
     pt2 = self.encoder_pq.encode(np.conj(w1).tolist())
     pt3 = self.encoder_pq.encode(w2.tolist())
     pt4 = self.encoder_pq.encode(np.conj(w2).tolist())
-    pts = [pt1, pt2, pt4, pt3]
+    pts = [pt1, pt2, pt3, pt4]
 
     ct_res = self.brot_kernel.brot_hybrid(
         pts=pts,

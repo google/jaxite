@@ -27,10 +27,10 @@ from jaxite.jaxite_ckks import types
 class Conjugation:
   """Kernel for homomorphic conjugation on TPU."""
 
-  key_switcher: key_switching.KeySwitcher
-  rescale_kernel: rescale.Rescale
-  conj_key: types.EvaluationKeys
-  start_control_index: int
+  key_switcher: key_switching.KeySwitcher = key_switching.KeySwitcher()
+  rescale_kernel: rescale.Rescale = rescale.Rescale()
+  conj_key: types.EvaluationKeys = types.EvaluationKeys()
+  start_control_index: int = 0
 
   def precompute_constants(
       self,
@@ -45,7 +45,6 @@ class Conjugation:
       conj_key: types.EvaluationKeys,
       start_control_index: int,
   ):
-    self.key_switcher = key_switching.KeySwitcher()
     self.key_switcher.precompute_constants(
         q_limbs,
         p_limbs,

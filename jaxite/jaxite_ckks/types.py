@@ -71,9 +71,9 @@ class SecretKey:
 class EvaluationKeys:
   """CKKS Evaluation Keys."""
 
-  a: jax.Array
-  b: jax.Array
-  moduli: jax.Array
+  a: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0, 0, 0)))  # pytype: disable=annotation-type-mismatch
+  b: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0, 0, 0)))  # pytype: disable=annotation-type-mismatch
+  moduli: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pytype: disable=annotation-type-mismatch
 
   def tree_flatten(self):
     return (self.a, self.b, self.moduli), ()
@@ -115,10 +115,11 @@ class MuxRotationKey:
   """
 
   keys: list[tuple[HMuxRotKey, HMuxRotKey]]
+  permutations: list[jax.Array]
 
   def tree_flatten(self):
-    return (self.keys,), None
+    return (self.keys, self.permutations), None
 
   @classmethod
   def tree_unflatten(cls, _, children):
-    return cls(children[0])
+    return cls(children[0], children[1])

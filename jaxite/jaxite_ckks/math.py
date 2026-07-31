@@ -1,6 +1,8 @@
 """Mathematical utilities for CKKS NTT."""
 
 import math
+import jax
+import jax.numpy as jnp
 import numpy as np
 
 
@@ -119,3 +121,73 @@ def compute_tpu_block_sizes(degree: int, block_size: int) -> tuple[int, int]:
   if degree >= block_size:
     return block_size, degree // block_size
   return degree, 1
+
+
+def bit_reverse(x: jax.Array, bits: int) -> jax.Array:
+  """Reverses the bits of each element in the array."""
+  rev = jnp.zeros_like(x)
+  temp = x
+  for _ in range(bits):
+    rev = (rev << 1) | (temp & 1)
+    temp >>= 1
+  return rev
+
+
+def is_prime(n: int) -> bool:
+  """Checks if n is a prime number."""
+  if n < 2:
+    return False
+  if n == 2:
+    return True
+  if n % 2 == 0:
+    return False
+  for i in range(3, int(math.sqrt(n)) + 1, 2):
+    if n % i == 0:
+      return False
+  return True
+
+
+def find_distinct_primes(
+    degree: int,
+    spec: list[tuple[str, int, int]],
+) -> dict[str, list[int]]:
+  """Finds distinct primes satisfying 2*degree | p-1 for each bit width.
+
+  Args:
+      degree: The polynomial degree N.
+      spec: A list of tuples (name, bit_width, count).
+
+  Returns:
+      A dictionary mapping name to the list of generated primes.
+  """
+  modulus = 2 * degree
+  used_primes = set()
+  result = {}
+
+  for name, bit_width, count in spec:
+    start = 1 << (bit_width - 1)
+    end = (1 << bit_width) - 1
+
+    # Align start to modulus + 1
+    rem = start % modulus
+    if rem <= 1:
+      start_val = start - rem + 1
+    else:
+      start_val = start + (modulus - rem) + 1
+
+    primes = []
+    val = start_val
+    while val <= end and len(primes) < count:
+      if val not in used_primes and is_prime(val):
+        primes.append(val)
+        used_primes.add(val)
+      val += modulus
+
+    if len(primes) < count:
+      raise ValueError(
+          f"Could not find {count} distinct {bit_width}-bit primes "
+          f"satisfying {modulus} | p-1"
+      )
+    result[name] = primes
+
+  return result

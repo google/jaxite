@@ -26,18 +26,23 @@ from jaxite.jaxite_ckks import mul
 from jaxite.jaxite_ckks import ntt
 from jaxite.jaxite_ckks import rescale
 from jaxite.jaxite_ckks import types
+import numpy as np
 
 
 @jax.tree_util.register_pytree_node_class
 class KeySwitcher:
   """Kernel for homomorphic key switching on TPU."""
 
-  ntt_kernels_q: list[ntt.NTTBarrett]
-  ntt_kernels_out: list[ntt.NTTBarrett]
-  p_limbs: jax.Array
-  bc_kernel: basis_conversion.BasisConversionBarrett
-  mul_kernel: mul.MulPlaintextCiphertextBarrett
-  p_mod_q: jax.Array
+  ntt_kernels_q: list[ntt.NTTBarrett] = []
+  ntt_kernels_out: list[ntt.NTTBarrett] = []
+  p_limbs: jax.Array = np.array([], dtype=np.uint32)  # pytype: disable=annotation-type-mismatch
+  bc_kernel: basis_conversion.BasisConversionBarrett = (
+      basis_conversion.BasisConversionBarrett()
+  )
+  mul_kernel: mul.MulPlaintextCiphertextBarrett = (
+      mul.MulPlaintextCiphertextBarrett()
+  )
+  p_mod_q: jax.Array = np.array([], dtype=np.uint64)  # pytype: disable=annotation-type-mismatch
 
   def precompute_constants(
       self,
@@ -285,7 +290,8 @@ class BATKeySwitcher:
     key0_data = jnp.stack([ksk.b[0], ksk.a[0]])
     key1_data = key1.data
 
-    # Stack to shape (2, 2, degree, num_moduli) and transpose to (degree, num_moduli, 2, 2)
+    # Stack to shape (2, 2, degree, num_moduli) and transpose to
+    # (degree, num_moduli, 2, 2)
     stacked = jnp.stack([key0_data, key1_data], axis=1)
     key_matrix = jnp.transpose(stacked, (2, 3, 0, 1))
 

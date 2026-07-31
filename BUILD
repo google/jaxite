@@ -29,7 +29,9 @@ py_library(
     name = "jaxite_ckks",
     srcs = glob(
         ["jaxite/jaxite_ckks/*.py"],
-        exclude = ["**/*_test.py"],
+        exclude = [
+            "**/*_test.py",
+        ],
     ),
     deps = [
         "@jaxite_deps//jax",
@@ -162,9 +164,7 @@ tpu_test(
     size = "large",
     timeout = "moderate",
     srcs = ["jaxite_ec/finite_field_test.py"],
-    python_version = "PY3",
     shard_count = 3,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         # copybara: xprof_analysis_client  # buildcleaner: keep
@@ -201,9 +201,7 @@ tpu_test(
         "jaxite_ec/test_case/t8/zprize_msm_curve_377_res_dim_8_seed_0.csv",
         "jaxite_ec/test_case/t8/zprize_msm_curve_377_scalars_dim_8_seed_0.csv",
     ],
-    python_version = "PY3",
     shard_count = 3,
-    srcs_version = "PY3ONLY",
     tags = ["manual"],
     deps = [
         ":jaxite",
@@ -223,9 +221,7 @@ tpu_test(
     size = "large",
     timeout = "long",
     srcs = ["jaxite_ec/elliptic_curve_test.py"],
-    python_version = "PY3",
     shard_count = 16,
-    srcs_version = "PY3ONLY",
     deps = [
         ":jaxite",
         # copybara: xprof_analysis_client  # buildcleaner: keep
@@ -560,6 +556,8 @@ py_test(
         ":jaxite_ckks",
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",
     ],
 )
@@ -728,6 +726,39 @@ cpu_gpu_tpu_test(
         ":jaxite_ckks",
         "@abseil-py//absl/testing:absltest",
         "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+cpu_gpu_tpu_test(
+    name = "bootstrapping_utils_test",
+    size = "small",
+    timeout = "long",
+    srcs = ["jaxite/jaxite_ckks/bootstrapping_utils_test.py"],
+    main = "jaxite/jaxite_ckks/bootstrapping_utils_test.py",
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
+        "@jaxite_deps//jax",
+        "@jaxite_deps//jaxlib",
+        "@jaxite_deps//numpy",
+    ],
+)
+
+cpu_gpu_tpu_test(
+    name = "bootstrapping_test",
+    size = "medium",
+    timeout = "long",
+    srcs = ["jaxite/jaxite_ckks/bootstrapping_test.py"],
+    main = "jaxite/jaxite_ckks/bootstrapping_test.py",
+    shard_count = 6,
+    deps = [
+        ":jaxite_ckks",
+        "@abseil-py//absl/testing:absltest",
+        "@jaxite_deps//hypothesis",
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",

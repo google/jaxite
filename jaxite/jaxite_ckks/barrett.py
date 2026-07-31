@@ -9,6 +9,7 @@ import math
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 
 @jax.tree_util.register_pytree_node_class
@@ -16,10 +17,10 @@ import jax.numpy as jnp
 class BarrettConstants:
   """Precomputed constants for Barrett reduction."""
 
-  m: jax.Array
-  moduli: jax.Array
-  w: jax.Array
-  s_w: jax.Array
+  m: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pytype: disable=annotation-type-mismatch
+  moduli: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pytype: disable=annotation-type-mismatch
+  w: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pytype: disable=annotation-type-mismatch
+  s_w: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pytype: disable=annotation-type-mismatch
 
   def tree_flatten(self):
     children = (self.m, self.moduli, self.w, self.s_w)

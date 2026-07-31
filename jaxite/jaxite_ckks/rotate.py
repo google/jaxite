@@ -16,7 +16,6 @@
 
 import math
 import jax
-from jaxite.jaxite_ckks import barrett
 from jaxite.jaxite_ckks import basis_conversion
 from jaxite.jaxite_ckks import blind_rotate_utils
 from jaxite.jaxite_ckks import key_switching
@@ -32,7 +31,7 @@ class Rotate:
   def __init__(self):
     self.key_switcher = key_switching.KeySwitcher()
     self.bc_kernel = basis_conversion.BasisConversionBarrett()
-    self.mul_kernel = mul.MulPlaintextCiphertextBarrett(None)  # pyrefly: ignore[bad-argument-type]
+    self.mul_kernel = mul.MulPlaintextCiphertextBarrett()
     self.rescale_kernel = rescale.Rescale()
 
   def tree_flatten(self):
@@ -79,8 +78,7 @@ class Rotate:
     self.bc_kernel.precompute_constants(all_moduli, bc_pairs)
 
     # 2. Precompute Mul constants
-    mul_constants = barrett.precompute_barrett_constants(all_moduli)
-    self.mul_kernel = mul.MulPlaintextCiphertextBarrett(mul_constants)
+    self.mul_kernel.precompute_constants(all_moduli)
 
     # 3. Precompute Rescale constants
     self.rescale_kernel.precompute_constants(

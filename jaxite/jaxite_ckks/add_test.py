@@ -27,7 +27,9 @@ def _get_kernel(kernel_name, moduli=None):
       return add.AddModularBarrett(constants)
     case 'modular_subtract':
       assert moduli is not None
-      return add.AddModularSubtract(moduli)
+      kernel = add.AddModularSubtract()
+      kernel.precompute_constants(moduli)
+      return kernel
     case _:
       raise ValueError(f'Unknown kernel: {kernel_name}')
 

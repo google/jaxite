@@ -65,7 +65,7 @@ class BlindRotateUtilsTest(parameterized.TestCase):
         lifted_ct.moduli, np.array(all_moduli, dtype=np.uint32)
     )
 
-  @parameterized.parameters(3, 5, 7)
+  @parameterized.parameters(3, 5, 7, 9)
   def test_apply_automorphism_ntt_non_trivial(self, g):
     degree = 8
     q = 1073184769

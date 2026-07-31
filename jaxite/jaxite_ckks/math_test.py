@@ -79,6 +79,26 @@ class MathTest(parameterized.TestCase):
     self.assertEqual(math.get_bit_reverse_perm(4), [0, 2, 1, 3])
     self.assertEqual(math.get_bit_reverse_perm(8), [0, 4, 2, 6, 1, 5, 3, 7])
 
+  def test_bit_reverse(self):
+    import jax.numpy as jnp
+
+    x = jnp.arange(8)
+    expected = jnp.array([0, 4, 2, 6, 1, 5, 3, 7])
+    np.testing.assert_array_equal(math.bit_reverse(x, 3), expected)
+
+  def test_is_prime(self):
+    self.assertTrue(math.is_prime(2))
+    self.assertTrue(math.is_prime(3))
+    self.assertTrue(math.is_prime(17))
+    self.assertFalse(math.is_prime(1))
+    self.assertFalse(math.is_prime(4))
+    self.assertFalse(math.is_prime(15))
+
+  def test_find_distinct_primes(self):
+    spec = [("test", 8, 2)]
+    res = math.find_distinct_primes(8, spec)
+    self.assertEqual(res["test"], [193, 241])
+
 
 if __name__ == "__main__":
   absltest.main()
