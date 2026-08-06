@@ -50,23 +50,12 @@ class MulPlaintextCiphertextSimple(MulPlaintextCiphertextBase):
 
 @jax.tree_util.register_pytree_node_class
 class MulPlaintextCiphertextBarrett(MulPlaintextCiphertextBase):
-  """Kernel for plaintext-ciphertext multiplication using Barrett reduction.
+  """Plaintext-ciphertext multiplication using Barrett reduction on VPU."""
 
-  Note: This kernel will execute on the VPU by doing (barrett_reduce(ct * pt)).
-  During the blind rotation (bsk) multiplication with the plaintext, we want the
-  VPU executed version.
-  CROSS also implements an offline BAT on the plaintexts to utilize the MXU to
-  perform a pt-ct multiplication, but using this depends on the context.
+  barrett_constants: barrett.BarrettConstants = barrett.BarrettConstants()
 
-  Constraints on inputs:
-  1. ct.data and pt.data must contain non-negative integers.
-  2. For each corresponding element, the product must be strictly less
-     than m^2, where m is the corresponding modulus.
-  3. The moduli must be less than 2^31.
-  """
-
-  def __init__(self, barrett_constants: barrett.BarrettConstants):
-    self.barrett_constants = barrett_constants
+  def precompute_constants(self, moduli: list[int]):
+    self.barrett_constants = barrett.precompute_barrett_constants(moduli)
 
   def mul(self, ct: types.Ciphertext, pt: types.Plaintext) -> types.Ciphertext:
     if self.barrett_constants is None:
@@ -91,7 +80,8 @@ class MulPlaintextCiphertextBarrett(MulPlaintextCiphertextBase):
 
   @classmethod
   def tree_unflatten(cls, _, children):
-    obj = cls(children[0])
+    obj = cls()
+    obj.barrett_constants = children[0]
     return obj
 
 
@@ -193,7 +183,9 @@ class Mul:
     self.degree = r * c
     self.composite_degree = composite_degree
 
-    self.drop_last_moduli = self.original_moduli[:-composite_degree]
+    self.drop_last_moduli = self.original_moduli[
+        : len(self.original_moduli) - composite_degree
+    ]
     # Ensure all elements in drop_last_moduli and extend_moduli are strictly
     # less than 2**31 to avoid overflow in both `tensor_multiply` and
     # `relinearize`.
@@ -436,8 +428,8 @@ class Mul:
 
       # Basis change to non-selected towers + extend towers
       # control_index = part + 1 (since index 0 is for approx mod down)
-      part_ct_clone_eval = self.bconv.basis_change(
-          part_ct_clone_coef, control_index=part + 1
+      part_ct_clone_eval = self.bconv.basis_change(  # pyrefly: ignore[missing-argument]
+          part_ct_clone_coef, control_index=part + 1  # pyrefly: ignore[bad-argument-type]
       )
 
       # Convert basis-changed part to NTT form
@@ -485,11 +477,11 @@ class Mul:
         ks_res1 = prod_a.astype(jnp.uint64)
       else:
         ks_res0 = ks_res0 + prod_b.astype(jnp.uint64)
-        ks_res1 = ks_res1 + prod_a.astype(jnp.uint64)
+        ks_res1 = ks_res1 + prod_a.astype(jnp.uint64)  # pyrefly: ignore[unsupported-operation]
 
     # Apply modulo reduction once after the loop
-    ks_res0 = barrett.modular_reduction(ks_res0, self.full_barrett_constants)
-    ks_res1 = barrett.modular_reduction(ks_res1, self.full_barrett_constants)
+    ks_res0 = barrett.modular_reduction(ks_res0, self.full_barrett_constants)  # pyrefly: ignore[bad-argument-type]
+    ks_res1 = barrett.modular_reduction(ks_res1, self.full_barrett_constants)  # pyrefly: ignore[bad-argument-type]
 
     keyswitch_core_res = jnp.concatenate(
         [ks_res0, ks_res1], axis=-3
@@ -513,7 +505,7 @@ class Mul:
 
     # Basis change from P to Q (drop_last)
     # control_index=0 is for approx mod down
-    ct_new_basis_coef = self.bconv.basis_change(p_part_coeffs, control_index=0)
+    ct_new_basis_coef = self.bconv.basis_change(p_part_coeffs, control_index=0)  # pyrefly: ignore[bad-argument-type, missing-argument]
 
     # Convert back to NTT form
     ct_new_basis_coef_reshaped = ct_new_basis_coef.reshape(
@@ -626,7 +618,9 @@ class Mul:
     obj.original_moduli = list(original_moduli)
     obj.extend_moduli = list(extend_moduli)
 
-    obj.drop_last_moduli = obj.original_moduli[: -obj.composite_degree]
+    obj.drop_last_moduli = obj.original_moduli[
+        : len(obj.original_moduli) - obj.composite_degree
+    ]
     obj.drop_last_extend_moduli = obj.drop_last_moduli + obj.extend_moduli
     obj.degree = obj.r * obj.c
     obj.is_initialized = True

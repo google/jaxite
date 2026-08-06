@@ -9,6 +9,26 @@ from jaxite.jaxite_ckks import ntt
 from jaxite.jaxite_ckks import types
 
 
+def compute_automorphism_indices(degree: int, g: int) -> jax.Array:
+  """Computes target indices for automorphism X -> X^g in NTT domain."""
+  bits = int(math.log2(degree))
+  indices = jnp.arange(degree, dtype=jnp.uint32)
+
+  # Bit-reverse indices to map the bit-reversed layout of jaxite's NTT
+  br_indices = ckks_math.bit_reverse(indices, bits)
+  g_u32 = jnp.array(g, dtype=jnp.uint32)
+  target_roots = (((2 * br_indices + 1) * g_u32 - 1) // 2) % degree
+  target_indices = ckks_math.bit_reverse(target_roots, bits)
+  return target_indices
+
+
+def apply_automorphism_ntt_with_indices(
+    data: jax.Array, indices: jax.Array
+) -> jax.Array:
+  """Applies automorphism using precomputed indices."""
+  return jnp.take(data, indices, axis=-2)
+
+
 def apply_automorphism_ntt(data: jax.Array, g: int) -> jax.Array:
   """Applies the automorphism X -> X^g to a polynomial in the NTT domain.
 
@@ -22,24 +42,8 @@ def apply_automorphism_ntt(data: jax.Array, g: int) -> jax.Array:
     The permuted polynomial in NTT domain with the same shape.
   """
   degree = data.shape[-2]
-  bits = int(math.log2(degree))
-  indices = jnp.arange(degree, dtype=jnp.uint32)
-
-  # Bit-reverse indices to map the bit-reversed layout of jaxite's NTT
-  def bit_reverse(x):
-    rev = jnp.zeros_like(x)
-    temp = x
-    for _ in range(bits):
-      rev = (rev << 1) | (temp & 1)
-      temp >>= 1
-    return rev
-
-  br_indices = bit_reverse(indices)
-  g_u32 = jnp.array(g, dtype=jnp.uint32)
-  target_roots = (((2 * br_indices + 1) * g_u32 - 1) // 2) % degree
-  target_indices = bit_reverse(target_roots)
-
-  return jnp.take(data, target_indices, axis=-2)
+  target_indices = compute_automorphism_indices(degree, g)
+  return apply_automorphism_ntt_with_indices(data, target_indices)
 
 
 def lift_ciphertext(
@@ -80,8 +84,8 @@ def lift_ciphertext(
   ct_coef_q_flat = ct_coef_q.reshape(num_elements, degree, num_q)
 
   # 3. Do basis conversion in coefficient domain: Q -> P
-  data_p_coef = bc_kernel.basis_change(
-      ct_coef_q_flat, control_index=control_index
+  data_p_coef = bc_kernel.basis_change(  # pyrefly: ignore[missing-argument]
+      ct_coef_q_flat, control_index=control_index  # pyrefly: ignore[bad-argument-type]
   )
 
   # 4. Reshape data_p_coef to (num_elements, num_blocks, r, c, num_p) for NTT

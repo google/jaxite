@@ -85,8 +85,8 @@ class Rescale:
   def __init__(self):
     self.moduli = None
     self.num_rescales = 1
-    self.r = None
-    self.c = None
+    self.r = 0
+    self.c = 0
     self.gammas_stacked = None
     self.betas_stacked = None
     self.thresholds = None
@@ -154,8 +154,8 @@ class Rescale:
       raise ValueError("Constants must be precomputed first.")
 
     data = ciphertext.data
-    num_elements, degree, num_moduli = data.shape
-    assert degree == self.r * self.c  # pyrefly: ignore[unsupported-operation]
+    num_elements, degree, _ = data.shape
+    assert degree == self.r * self.c
 
     current_moduli = self.moduli
 
@@ -180,17 +180,26 @@ class Rescale:
       last_limb_coeffs = ntt_kernel.intt(last_limb_reshaped.astype(jnp.uint32))
       last_limb_coeffs = last_limb_coeffs.reshape(num_elements, degree, 1)
 
-      # Centered reduction simulation
-      switched = jnp.where(
+      # Centered reduction simulation.
+      # We represent the last limb as a signed integer in
+      # [-last_modulus/2, last_modulus/2] to avoid overflow
+      # when reducing modulo remaining_moduli.
+      # The original formula `Q - M + L` can be negative and
+      # overflow to a large positive value when cast to uint64
+      # if Q < M/2 (which is possible when rescaling by a
+      # large auxiliary modulus P).
+      val_signed = jnp.where(
           last_limb_coeffs < threshold,
-          last_limb_coeffs,
-          jnp.array(remaining_moduli, jnp.int64).reshape(1, 1, -1)
-          - int(last_modulus)
-          + last_limb_coeffs.astype(jnp.int64),
+          last_limb_coeffs.astype(jnp.int64),
+          last_limb_coeffs.astype(jnp.int64) - int(last_modulus),
       )
+      remaining_moduli_jnp = jnp.array(
+          remaining_moduli, dtype=jnp.int64
+      ).reshape(1, 1, -1)
+      switched = (val_signed % remaining_moduli_jnp).astype(jnp.uint64)
 
       # Multiply by gammas
-      twisted = switched.astype(jnp.uint64) * gammas.reshape(1, 1, -1)
+      twisted = switched * gammas.reshape(1, 1, -1)
 
       # Reduce and convert back to NTT
       reduced_twisted = (

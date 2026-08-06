@@ -161,7 +161,7 @@ class BasisConversionBarrettTest(parameterized.TestCase):
       target_moduli = [moduli[i] for i in target_idx]
 
       in_tower = generate_rns_value(ring_dim, orig_moduli, key)
-      out_tower = kernel.basis_change(in_tower, control_index=control_index)
+      out_tower = kernel.basis_change(in_tower, control_index=control_index)  # pyrefly: ignore[missing-argument]
       verify_approximate_basis_conversion(
           in_tower, out_tower, orig_moduli, target_moduli
       )
@@ -195,7 +195,7 @@ class BasisConversionBarrettTest(parameterized.TestCase):
 
     ring_dim = 2**log2_ring_dim
     in_tower = generate_rns_value(ring_dim, orig_moduli, key)
-    out_tower = kernel.basis_change(in_tower, control_index=0)
+    out_tower = kernel.basis_change(in_tower, control_index=0)  # pyrefly: ignore[missing-argument]
 
     verify_approximate_basis_conversion(
         in_tower, out_tower, orig_moduli, target_moduli

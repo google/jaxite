@@ -5,7 +5,6 @@ import hypothesis
 from hypothesis import strategies as st
 import jax
 import jax.numpy as jnp
-from jaxite.jaxite_ckks import barrett
 from jaxite.jaxite_ckks import basis_conversion
 from jaxite.jaxite_ckks import encode
 from jaxite.jaxite_ckks import encrypt
@@ -139,8 +138,8 @@ class KeySwitchingTest(parameterized.TestCase):
     ks_control_indices = mul.Mul.compute_control_indices(q_limbs, p_limbs, dnum)
     bc_kernel.precompute_constants(all_moduli, ks_control_indices)
 
-    barrett_constants_pq = barrett.precompute_barrett_constants(all_moduli)
-    mul_kernel = mul.MulPlaintextCiphertextBarrett(barrett_constants_pq)
+    mul_kernel = mul.MulPlaintextCiphertextBarrett()
+    mul_kernel.precompute_constants(all_moduli)
 
     # 1. Encrypt message under sk_src
     mu = np.array(
@@ -217,8 +216,8 @@ class KeySwitchingTest(parameterized.TestCase):
     # BC from Q (2 limbs) to P (1 limb)
     bc_kernel.precompute_constants(all_moduli, [([0, 1], [2])])
 
-    barrett_constants_pq = barrett.precompute_barrett_constants(all_moduli)
-    mul_kernel = mul.MulPlaintextCiphertextBarrett(barrett_constants_pq)
+    mul_kernel = mul.MulPlaintextCiphertextBarrett()
+    mul_kernel.precompute_constants(all_moduli)
 
     rescale_kernel = rescale.Rescale()
     rescale_kernel.precompute_constants(all_moduli, num_rescales=1, r=4, c=4)
@@ -300,8 +299,8 @@ class KeySwitcherHypothesisTest(parameterized.TestCase):
     ks_control_indices = mul.Mul.compute_control_indices(q_limbs, p_limbs, dnum)
     bc_kernel.precompute_constants(all_moduli, ks_control_indices)
 
-    barrett_constants_pq = barrett.precompute_barrett_constants(all_moduli)
-    mul_kernel = mul.MulPlaintextCiphertextBarrett(barrett_constants_pq)
+    mul_kernel = mul.MulPlaintextCiphertextBarrett()
+    mul_kernel.precompute_constants(all_moduli)
 
     # 1. Encrypt message under sk_src
     mu = np.array(mu_list, dtype=complex)
@@ -379,8 +378,8 @@ class KeySwitcherHypothesisTest(parameterized.TestCase):
     # BC from Q (2 limbs) to P (1 limb)
     bc_kernel.precompute_constants(all_moduli, [([0, 1], [2])])
 
-    barrett_constants_pq = barrett.precompute_barrett_constants(all_moduli)
-    mul_kernel = mul.MulPlaintextCiphertextBarrett(barrett_constants_pq)
+    mul_kernel = mul.MulPlaintextCiphertextBarrett()
+    mul_kernel.precompute_constants(all_moduli)
 
     rescale_kernel = rescale.Rescale()
     rescale_kernel.precompute_constants(all_moduli, num_rescales=1, r=r, c=c)

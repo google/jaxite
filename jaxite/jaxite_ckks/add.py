@@ -5,6 +5,7 @@ from typing import Iterable
 import jax
 import jax.numpy as jnp
 from jaxite.jaxite_ckks import barrett
+import numpy as np
 
 ABC = abc.ABC
 abstractmethod = abc.abstractmethod
@@ -80,7 +81,9 @@ class AddModularSubtract(AddBase):
   modulus-1]), so that their sum is less than 2 * modulus.
   """
 
-  def __init__(self, moduli: Iterable[int]):
+  moduli: jax.Array = np.array([], dtype=np.uint32)  # pytype: disable=annotation-type-mismatch
+
+  def precompute_constants(self, moduli: Iterable[int]):
     self.moduli = jnp.array(list(moduli), dtype=jnp.uint32)
 
   def add(self, a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
@@ -96,5 +99,6 @@ class AddModularSubtract(AddBase):
 
   @classmethod
   def tree_unflatten(cls, _, children):
-    obj = cls(children[0])
+    obj = cls()
+    obj.moduli = children[0]
     return obj

@@ -4,7 +4,6 @@ import math
 
 import jax
 import jax.numpy as jnp
-from jaxite.jaxite_ckks import barrett
 from jaxite.jaxite_ckks import basis_conversion
 from jaxite.jaxite_ckks import encode
 from jaxite.jaxite_ckks import encrypt
@@ -153,8 +152,8 @@ class KeySwitchingTest(parameterized.TestCase):
     bc_kernel.precompute_constants(all_moduli, bc_pairs)
 
     # 2. Setup Barrett Mul
-    barrett_constants_pq = barrett.precompute_barrett_constants(all_moduli)
-    mul_kernel = mul.MulPlaintextCiphertextBarrett(barrett_constants_pq)
+    mul_kernel = mul.MulPlaintextCiphertextBarrett()
+    mul_kernel.precompute_constants(all_moduli)
 
     # 3. Setup KeySwitcher
     key_switcher = key_switching.KeySwitcher()

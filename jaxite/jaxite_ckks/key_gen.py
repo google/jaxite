@@ -353,12 +353,15 @@ def gen_mux_rotation_key(
   all_moduli = q_limbs + p_limbs
   sk_ext = extend_secret_key(sk, all_moduli)
 
+  degree = sk.data.shape[0]
   keys = []
+  permutations = []
   for k, bit in enumerate(secret_bits):
+    j = (2**k) * stride
     hmrkey_jk_0 = gen_hmuxrot_key(
         sk=sk,
         beta=bit,
-        j=(2**k) * stride,
+        j=j,
         q_limbs=q_limbs,
         p_limbs=p_limbs,
         random_source=random_source,
@@ -374,7 +377,11 @@ def gen_mux_rotation_key(
         sk_ext=sk_ext,
     )
     keys.append((hmrkey_jk_0, hmrkey_not_jk_1))
-  return types.MuxRotationKey(keys)
+
+    g = pow(5, -j, 2 * degree)
+    perm = blind_rotate_utils.compute_automorphism_indices(degree, g)
+    permutations.append(perm)
+  return types.MuxRotationKey(keys, permutations)
 
 
 def gen_rotation_key(
@@ -419,11 +426,12 @@ def gen_hybrid_key(
 
   sk_ext = extend_secret_key(sk, all_moduli)
 
-  j_1 = j // theta
-  j_0 = j % theta
+  j_mod = j % num_slots
+  j_1 = j_mod // theta
+  j_0 = j_mod % theta
 
   # 1. Generate MuxRotationKey for the giant steps (j_1)
-  num_bits = int(np.log2(num_giant_steps))
+  num_bits = math.ceil(math.log2(num_giant_steps))
   j1_bits = [int((j_1 >> k) & 1) for k in range(num_bits)]
   mmkey_hybrid = gen_mux_rotation_key(
       sk=sk,
@@ -452,12 +460,10 @@ def gen_hybrid_key(
     masks = [
         s_pos * mask_base,
         s_neg * mask_base,
-        s_pos * (1.0 - mask_base),
         s_neg * (1.0 - mask_base),
+        s_pos * (1.0 - mask_base),
     ]
   else:
-    # Under cyclotomic relation sign flip (second half), the positive
-    # and negative components for the second-half plaintexts are swapped.
     masks = [
         s_neg * (1.0 - mask_base),
         s_pos * (1.0 - mask_base),

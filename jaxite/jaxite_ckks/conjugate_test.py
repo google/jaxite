@@ -4,7 +4,6 @@ import math
 
 import hypothesis
 from hypothesis import strategies as st
-from jaxite.jaxite_ckks import barrett
 from jaxite.jaxite_ckks import basis_conversion
 from jaxite.jaxite_ckks import conjugate
 from jaxite.jaxite_ckks import encode
@@ -57,8 +56,8 @@ class ConjugateTest(parameterized.TestCase):
 
     bc_kernel.precompute_constants(all_moduli, bc_pairs)
 
-    barrett_constants_pq = barrett.precompute_barrett_constants(all_moduli)
-    mul_kernel = mul.MulPlaintextCiphertextBarrett(barrett_constants_pq)
+    mul_kernel = mul.MulPlaintextCiphertextBarrett()
+    mul_kernel.precompute_constants(all_moduli)
     rescale_kernel = rescale.Rescale()
     rescale_kernel.precompute_constants(
         moduli=all_moduli,
@@ -208,8 +207,8 @@ class ConjugateTest(parameterized.TestCase):
     bc_kernel = basis_conversion.BasisConversionBarrett()
     bc_kernel.precompute_constants(all_moduli, [([0], [1, 2])])
 
-    barrett_constants_pq = barrett.precompute_barrett_constants(all_moduli)
-    mul_kernel = mul.MulPlaintextCiphertextBarrett(barrett_constants_pq)
+    mul_kernel = mul.MulPlaintextCiphertextBarrett()
+    mul_kernel.precompute_constants(all_moduli)
     rescale_kernel = rescale.Rescale()
     rescale_kernel.precompute_constants(
         all_moduli, num_rescales=len(p_limbs), r=4, c=4

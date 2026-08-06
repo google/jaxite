@@ -4,7 +4,6 @@ import hypothesis
 from hypothesis import strategies as st
 import jax
 import jax.numpy as jnp
-from jaxite.jaxite_ckks import barrett
 from jaxite.jaxite_ckks import basis_conversion
 from jaxite.jaxite_ckks import encode
 from jaxite.jaxite_ckks import encrypt
@@ -40,8 +39,9 @@ def _get_kernel(kernel_name, moduli=None):
       return mul.MulPlaintextCiphertextSimple()
     case 'modular_barrett':
       assert moduli is not None
-      constants = barrett.precompute_barrett_constants(moduli)
-      return mul.MulPlaintextCiphertextBarrett(constants)
+      kernel = mul.MulPlaintextCiphertextBarrett()
+      kernel.precompute_constants(moduli)
+      return kernel
     case _:
       raise ValueError(f'Unknown kernel: {kernel_name}')
 
@@ -139,8 +139,8 @@ class PlaintextCiphertextMulTest(parameterized.TestCase):
     ct1 = encryptor.encrypt(pt1, random_source=test_random_source)
 
     # Multiply ciphertext with plaintext
-    constants = barrett.precompute_barrett_constants(moduli)
-    mul_kernel = mul.MulPlaintextCiphertextBarrett(constants)
+    mul_kernel = mul.MulPlaintextCiphertextBarrett()
+    mul_kernel.precompute_constants(moduli)
 
     # Multiply ciphertext with plaintext
     ct_mul = mul_kernel.mul(ct1, pt2)
