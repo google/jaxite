@@ -84,8 +84,8 @@ def lift_ciphertext(
   ct_coef_q_flat = ct_coef_q.reshape(num_elements, degree, num_q)
 
   # 3. Do basis conversion in coefficient domain: Q -> P
-  data_p_coef = bc_kernel.basis_change(
-      ct_coef_q_flat, control_index=control_index
+  data_p_coef = bc_kernel.basis_change(  # pyrefly: ignore[missing-argument]
+      ct_coef_q_flat, control_index=control_index  # pyrefly: ignore[bad-argument-type]
   )
 
   # 4. Reshape data_p_coef to (num_elements, num_blocks, r, c, num_p) for NTT

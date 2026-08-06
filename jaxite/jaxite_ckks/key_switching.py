@@ -166,8 +166,8 @@ class KeySwitcher:
 
       # Basis change to out_moduli
       control_index_loop = start_control_index + i
-      c1_part_out_coeffs = self.bc_kernel.basis_change(
-          c1_part_coeffs, control_index=control_index_loop
+      c1_part_out_coeffs = self.bc_kernel.basis_change(  # pyrefly: ignore[missing-argument]
+          c1_part_coeffs, control_index=control_index_loop  # pyrefly: ignore[bad-argument-type]
       )
 
       # Convert back to NTT domain modulo out_moduli
