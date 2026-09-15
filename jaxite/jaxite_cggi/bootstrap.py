@@ -88,11 +88,11 @@ def gen_bootstrapping_key(
           k,
           rlwe_sk.modulus_degree,
       ),
-      dtype=jnp.uint32,
+      dtype=jnp.uint32,  # pyrefly: ignore[bad-argument-type]
   )
   error_samples = prg.rounded_normal(
       shape=(padded_num_bsk_encryptions, num_blocks + 1, levels),
-      dtype=jnp.uint32,
+      dtype=jnp.uint32,  # pyrefly: ignore[bad-argument-type]
   )
 
   lwe_sk_data = lwe_sk.key_data.astype(jnp.uint32)
@@ -614,7 +614,7 @@ def sample_extract(ciphertext: rlwe.RlweCiphertext) -> types.LweCiphertext:
 @jax.named_call
 @functools.partial(jax.jit, static_argnames="poly_deg")
 def jit_sample_extract(
-    rlwe_ciphertext: jnp.ndarray, poly_deg: jnp.uint32
+    rlwe_ciphertext: jnp.ndarray, poly_deg: jnp.uint32  # pyrefly: ignore[not-a-type]
 ) -> types.LweCiphertext:
   """Extracts an LWE encryption of the constant term encrypted by the input.
 

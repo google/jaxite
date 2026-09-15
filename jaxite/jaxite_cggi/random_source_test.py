@@ -90,7 +90,7 @@ class CryptographicallySecureRandomSourceTest(parameterized.TestCase):
 
   def test_rounded_normal_correct_type(self, rng: random_source.RandomSource):
     test_shape = (10, 10)
-    result = rng.rounded_normal(test_shape, dtype=jnp.int32)
+    result = rng.rounded_normal(test_shape, dtype=jnp.int32)  # pyrefly: ignore[bad-argument-type]
     self.assertEqual(result.dtype, jnp.int32)
 
 
@@ -124,7 +124,7 @@ class NormalOnlyRandomSourceTest(absltest.TestCase):
 
   def test_rounded_normal_correct_type(self):
     test_shape = (10, 10)
-    result = self.rng.rounded_normal(test_shape, dtype=jnp.int32)
+    result = self.rng.rounded_normal(test_shape, dtype=jnp.int32)  # pyrefly: ignore[bad-argument-type]
     self.assertEqual(result.dtype, jnp.int32)
 
 
@@ -151,7 +151,7 @@ class ConstantUniformRandomSourceTest(absltest.TestCase):
 
   def test_rounded_normal_correct_type(self):
     test_shape = (10, 10)
-    result = self.rng.rounded_normal(test_shape, dtype=jnp.int32)
+    result = self.rng.rounded_normal(test_shape, dtype=jnp.int32)  # pyrefly: ignore[bad-argument-type]
     self.assertEqual(result.dtype, jnp.int32)
 
 
@@ -180,7 +180,7 @@ class ZeroRandomSourceTest(absltest.TestCase):
 
   def test_rounded_normal_correct_type(self):
     test_shape = (10, 10)
-    result = self.rng.rounded_normal(test_shape, dtype=jnp.int32)
+    result = self.rng.rounded_normal(test_shape, dtype=jnp.int32)  # pyrefly: ignore[bad-argument-type]
     self.assertEqual(result.dtype, jnp.int32)
 
 

@@ -282,7 +282,7 @@ class LweModulusSwitchingTest(parameterized.TestCase):
         padding_bit_length=0,
     )
 
-    cleartext = jnp.uint32(cleartext)
+    cleartext = jnp.uint32(cleartext)  # pyrefly: ignore[bad-assignment]
     plaintext = encoding.encode(cleartext, encoding_params)
     key = lwe.gen_key(params=scheme_params, prg=rng)
     ciphertext = lwe.encrypt(plaintext, key, prg=rng)

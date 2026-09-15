@@ -52,7 +52,7 @@ class EncodingDecodingTest(parameterized.TestCase):
         total_bit_length=32, message_bit_length=16, padding_bit_length=0
     )
 
-    encoded: types.LwePlaintext = encoding.encode(cleartext, params)
+    encoded: types.LwePlaintext = encoding.encode(cleartext, params)  # pyrefly: ignore[not-a-type]
     decoded: types.LweCleartext = encoding.decode(encoded, params)
     self.assertEqual(decoded, cleartext)
 
@@ -63,7 +63,7 @@ class EncodingDecodingTest(parameterized.TestCase):
         total_bit_length=32, message_bit_length=16, padding_bit_length=8
     )
 
-    encoded: types.LwePlaintext = encoding.encode(cleartext, params)
+    encoded: types.LwePlaintext = encoding.encode(cleartext, params)  # pyrefly: ignore[not-a-type]
     decoded: types.LweCleartext = encoding.decode(encoded, params)
     self.assertEqual(decoded, cleartext)
 

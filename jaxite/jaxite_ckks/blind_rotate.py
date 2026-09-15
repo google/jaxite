@@ -377,7 +377,7 @@ class BlindRotation:
     def get_pt_rot(pt_data):
       return jax.vmap(
           blind_rotate_utils.apply_automorphism_ntt, in_axes=(None, 0)
-      )(pt_data, gs)
+      )(pt_data, gs)  # pyrefly: ignore[bad-argument-type]
 
     pt_rot_all_k = jax.vmap(get_pt_rot)(pts_data)
     # pt_rot_all_k_expanded: shape (4, theta, 1, degree, num_moduli)

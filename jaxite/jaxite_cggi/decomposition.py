@@ -32,7 +32,7 @@ class DecompositionParameters:
     jax.jit, static_argnames=("base_log", "num_levels", "total_bit_length")
 )
 def decompose(
-    x: jnp.uint32,
+    x: jnp.uint32,  # pyrefly: ignore[not-a-type]
     base_log: int = 4,
     num_levels: int = 3,
     total_bit_length: int = 32,
@@ -92,7 +92,7 @@ def decompose(
     jax.jit, static_argnames=("base_log", "num_levels", "total_bit_length")
 )
 def recomposition_summands(
-    x: jnp.uint32,
+    x: jnp.uint32,  # pyrefly: ignore[not-a-type]
     base_log: int = 4,
     num_levels: int = 3,
     total_bit_length: int = 32,
@@ -130,7 +130,7 @@ def recomposition_summands(
 @functools.partial(jax.jit, static_argnames=("base_log", "total_bit_length"))
 def recompose(
     digits: DecomposedInt, base_log: int = 4, total_bit_length: int = 32
-) -> jnp.uint32:
+) -> jnp.uint32:  # pyrefly: ignore[not-a-type]
   """The inverse of decompose.
 
   Note num_levels == len(digits).
@@ -153,8 +153,8 @@ def recompose(
     jax.jit, static_argnames=("base_log", "num_levels", "total_bit_length")
 )
 def signed_decomposition(
-    x: jnp.uint32,
-    base_log: jnp.uint32,
+    x: jnp.uint32,  # pyrefly: ignore[not-a-type]
+    base_log: jnp.uint32,  # pyrefly: ignore[not-a-type]
     num_levels: int,
     total_bit_length: int = 32,
 ) -> jnp.ndarray:

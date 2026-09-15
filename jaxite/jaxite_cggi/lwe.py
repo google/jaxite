@@ -30,7 +30,7 @@ class LweSecretKey:
   key_data: jnp.ndarray
 
   @property
-  def modulus(self) -> jnp.uint32:
+  def modulus(self) -> jnp.uint32:  # pyrefly: ignore[not-a-type]
     return 2 ** jnp.uint32(self.log_modulus)
 
 
@@ -41,17 +41,17 @@ def gen_key(
   return LweSecretKey(
       log_modulus=params.log_plaintext_modulus,
       lwe_dimension=params.lwe_dimension,
-      key_data=prg.sk_uniform(shape=(params.lwe_dimension,), dtype=jnp.uint32),
+      key_data=prg.sk_uniform(shape=(params.lwe_dimension,), dtype=jnp.uint32),  # pyrefly: ignore[bad-argument-type]
   )
 
 
 def encrypt(
-    plaintext: types.LwePlaintext,
+    plaintext: types.LwePlaintext,  # pyrefly: ignore[not-a-type]
     sk: LweSecretKey,
     prg: random_source.RandomSource,
 ) -> types.LweCiphertext:
   """Encrypt an LWE plaintext."""
-  ai_samples = prg.uniform(shape=(sk.lwe_dimension,), dtype=jnp.uint32)
+  ai_samples = prg.uniform(shape=(sk.lwe_dimension,), dtype=jnp.uint32)  # pyrefly: ignore[bad-argument-type]
   error_sample = prg.rounded_normal()
   return jit_encrypt(
       plaintext,
@@ -64,10 +64,10 @@ def encrypt(
 
 @functools.partial(jax.jit, static_argnames="log_modulus")
 def jit_encrypt(
-    plaintext: types.LwePlaintext,
+    plaintext: types.LwePlaintext,  # pyrefly: ignore[not-a-type]
     key_data: jnp.ndarray,
     ai_samples: jnp.ndarray,
-    error_sample: jnp.uint32,
+    error_sample: jnp.uint32,  # pyrefly: ignore[not-a-type]
     log_modulus: int,
 ) -> types.LweCiphertext:
   """Encrypt an LWE plaintext with pre-computed randomness."""
@@ -81,7 +81,7 @@ def jit_encrypt(
 def decrypt_without_denoising(
     ciphertext: types.LweCiphertext,
     sk: LweSecretKey,
-) -> types.LwePlaintext:
+) -> types.LwePlaintext:  # pyrefly: ignore[not-a-type]
   """Decrypt an LWE ciphertext without removing noise."""
   obfuscated_plaintext = ciphertext[-1] - jnp.dot(ciphertext[:-1], sk.key_data)
   if sk.log_modulus < 32:
@@ -102,7 +102,7 @@ def decrypt(
 
 
 def noiseless_embedding(
-    plaintext: types.LwePlaintext, lwe_dimension: int
+    plaintext: types.LwePlaintext, lwe_dimension: int  # pyrefly: ignore[not-a-type]
 ) -> types.LweCiphertext:
   """Returns a noiseless LweCiphertext embedding of `plaintext`."""
   samples = jnp.zeros((lwe_dimension,), dtype=jnp.uint32)
@@ -112,8 +112,8 @@ def noiseless_embedding(
 @jax.jit
 def switch_modulus(
     ciphertext: types.LweCiphertext,
-    log_input_modulus: jnp.uint32,
-    log_output_modulus: jnp.uint32,
+    log_input_modulus: jnp.uint32,  # pyrefly: ignore[not-a-type]
+    log_output_modulus: jnp.uint32,  # pyrefly: ignore[not-a-type]
 ) -> types.LweCiphertext:
   """Perform a modulus switch on the input ciphertext.
 

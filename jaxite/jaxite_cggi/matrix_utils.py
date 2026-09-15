@@ -12,7 +12,7 @@ from jaxite.jaxite_cggi import jax_helpers
 
 
 @jax.jit
-def integer_div(values: jnp.ndarray, divisor: jnp.uint32) -> jnp.ndarray:
+def integer_div(values: jnp.ndarray, divisor: jnp.uint32) -> jnp.ndarray:  # pyrefly: ignore[not-a-type]
   """Performs integer division with rounding for positive integers X, d.
 
   Args:
@@ -42,7 +42,7 @@ def integer_div(values: jnp.ndarray, divisor: jnp.uint32) -> jnp.ndarray:
 
 
 @functools.partial(jax.jit, static_argnames="poly_mod_deg")
-def x_power_n_minus_1(n: jnp.uint32, poly_mod_deg: jnp.uint32) -> jnp.ndarray:
+def x_power_n_minus_1(n: jnp.uint32, poly_mod_deg: jnp.uint32) -> jnp.ndarray:  # pyrefly: ignore[not-a-type]
   """Construct a polynomial of the form x^d - 1 for an input power d.
 
   The polynomial is reduced modulo (x^poly_mod_deg + 1). If n == 0, the zero
@@ -761,7 +761,7 @@ def poly_mul(a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
 @jax.named_call
 @functools.partial(jax.jit, static_argnames="log_modulus")
 def monomial_mul(
-    poly: jnp.ndarray, degree: jnp.uint32, log_modulus: jnp.uint32
+    poly: jnp.ndarray, degree: jnp.uint32, log_modulus: jnp.uint32  # pyrefly: ignore[not-a-type]
 ) -> jnp.ndarray:
   """Computes `poly * X^degree mod (X^N + 1)` where N = len(poly).
 
@@ -846,7 +846,7 @@ def poly_dot_product(
 
 @functools.partial(jax.jit, static_argnames="log_modulus")
 def scale_by_x_power_n_minus_1(
-    power: jnp.int32, matrix: jnp.ndarray, log_modulus: int
+    power: jnp.int32, matrix: jnp.ndarray, log_modulus: int  # pyrefly: ignore[not-a-type]
 ) -> jnp.ndarray:
   """An optimized poly mul for scaling a matrix of polynomials by x^n - 1.
 

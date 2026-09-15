@@ -67,7 +67,7 @@ def encode(
     message: Union[types.LweCleartext, jnp.ndarray],
     params: EncodingParameters,
     test_polynomial_encoding: bool = False,
-) -> Union[types.LwePlaintext, jnp.ndarray]:
+) -> Union[types.LwePlaintext, jnp.ndarray]:  # pyrefly: ignore[not-a-type]
   """Encode a plaintext or array of plaintexts for use in a TFHE ciphertext.
 
   The bits are organized so that the top bits are padding for overflow,
@@ -109,7 +109,7 @@ def encode(
 
 
 def decode_without_removing_padding(
-    plaintext: types.LwePlaintext, params: EncodingParameters
+    plaintext: types.LwePlaintext, params: EncodingParameters  # pyrefly: ignore[not-a-type]
 ) -> types.LweCleartext:
   """Decode a plaintext without removing padding.
 
@@ -128,7 +128,7 @@ def decode_without_removing_padding(
 
 
 def decode(
-    plaintext: types.LwePlaintext, params: EncodingParameters
+    plaintext: types.LwePlaintext, params: EncodingParameters  # pyrefly: ignore[not-a-type]
 ) -> types.LweCleartext:
   """Decode a plaintext.
 
@@ -176,7 +176,7 @@ def round_to_power_of_2(arr: jnp.ndarray, log_pow_of_2: int) -> jnp.ndarray:
 
 
 def extract_noise(
-    plaintext: types.LwePlaintext, encoding_params: EncodingParameters
+    plaintext: types.LwePlaintext, encoding_params: EncodingParameters  # pyrefly: ignore[not-a-type]
 ) -> int:
   """Extracts the noise bits of a plaintext as a (signed) int."""
   rounded = remove_noise(plaintext, encoding_params)

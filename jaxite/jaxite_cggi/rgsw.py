@@ -29,7 +29,7 @@ class RgswPlaintext:
   modulus_degree: int
 
   # The unsigned integer representing the plaintext.
-  message: jnp.uint32
+  message: jnp.uint32  # pyrefly: ignore[not-a-type]
 
   def __str__(self) -> str:
     return str(self.message)
@@ -53,7 +53,7 @@ class RgswCiphertext:
   modulus_degree: int
 
   @property
-  def coefficient_modulus(self) -> jnp.uint32:
+  def coefficient_modulus(self) -> jnp.uint32:  # pyrefly: ignore[not-a-type]
     return jnp.uint32(2) ** self.log_coefficient_modulus
 
   def __len__(self):
@@ -90,7 +90,7 @@ class RgswSecretKey:
   def to_rlwe_secret_key(self) -> rlwe.RlweSecretKey:
     return self.key
 
-  def data_at_index(self, i: int) -> jnp.uint32:
+  def data_at_index(self, i: int) -> jnp.uint32:  # pyrefly: ignore[not-a-type]
     return self.key.data[i]
 
 
@@ -125,11 +125,11 @@ def encrypt(
   # comes from the b term of the RLWE encryption.
   ai_samples = prg.uniform(
       shape=(num_blocks + 1, levels, k, rlwe_sk.modulus_degree),
-      dtype=jnp.uint32,
+      dtype=jnp.uint32,  # pyrefly: ignore[bad-argument-type]
   )
   error_samples = prg.rounded_normal(
       shape=(num_blocks + 1, levels),
-      dtype=jnp.uint32,
+      dtype=jnp.uint32,  # pyrefly: ignore[bad-argument-type]
   )
 
   ciphertext = jit_encrypt(

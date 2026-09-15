@@ -16,7 +16,7 @@ class LweKeySwitchingKey:
   """A public key used to switch keys encrypted an LWE ciphertext."""
 
   # the q in Z/qZ, same as the LwePlaintext space
-  modulus: jnp.uint32
+  modulus: jnp.uint32  # pyrefly: ignore[not-a-type]
 
   # the length of the sampled key_data vector s,
   # equal to len(LweCiphertext) - 1.
@@ -65,10 +65,10 @@ def gen_key(
   # The resulting shape of the key switching key is (n, num_levels, lwe_size)
   lwe_ai_samples = prg.uniform(
       shape=(n, num_levels, out_key.lwe_dimension),
-      dtype=jnp.uint32,
+      dtype=jnp.uint32,  # pyrefly: ignore[bad-argument-type]
   )
   lwe_error_samples = prg.rounded_normal(
-      shape=(n, num_levels), dtype=jnp.uint32
+      shape=(n, num_levels), dtype=jnp.uint32  # pyrefly: ignore[bad-argument-type]
   )
   key_data = jnp.zeros((n, num_levels, lwe_size), dtype=jnp.uint32)
 

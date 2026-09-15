@@ -17,17 +17,17 @@ class RlwePlaintext:
   """An RLWE plaintext is a polynomial in (Z/qZ)[X] / (X^N + 1)."""
 
   # the log of the modulus q of the polynomial coefficients
-  log_coefficient_modulus: jnp.uint32
+  log_coefficient_modulus: jnp.uint32  # pyrefly: ignore[not-a-type]
 
   # the degree N of the ring modulus polynomial.
-  modulus_degree: jnp.uint32
+  modulus_degree: jnp.uint32  # pyrefly: ignore[not-a-type]
 
   # the coefficients of the polynomial,
   # starting from lowest degree to highest.
   message: jnp.ndarray
 
   @property
-  def coefficient_modulus(self) -> jnp.uint32:
+  def coefficient_modulus(self) -> jnp.uint32:  # pyrefly: ignore[not-a-type]
     return 2 ** jnp.uint32(self.log_coefficient_modulus)
 
   def __str__(self) -> str:
@@ -49,10 +49,10 @@ class RlweCiphertext:
   """
 
   # the log of the modulus q of the polynomial coefficients
-  log_coefficient_modulus: jnp.uint32
+  log_coefficient_modulus: jnp.uint32  # pyrefly: ignore[not-a-type]
 
   # the degree N of the ring modulus polynomial.
-  modulus_degree: jnp.uint32
+  modulus_degree: jnp.uint32  # pyrefly: ignore[not-a-type]
 
   # the polynomials, packed so each row corresponds to one polynomial, and each
   # column corresponds to a coefficient of the same degree.  The first colum is
@@ -60,7 +60,7 @@ class RlweCiphertext:
   message: jnp.ndarray
 
   @property
-  def coefficient_modulus(self) -> jnp.uint32:
+  def coefficient_modulus(self) -> jnp.uint32:  # pyrefly: ignore[not-a-type]
     return 2 ** jnp.uint32(self.log_coefficient_modulus)
 
   def _single_row_str(self, row):
@@ -86,13 +86,13 @@ class RlweSecretKey:
   """A secret key for the RLWE encryption scheme."""
 
   # the log of q in Z/qZ
-  log_coefficient_modulus: jnp.uint32
+  log_coefficient_modulus: jnp.uint32  # pyrefly: ignore[not-a-type]
 
   # the power of two N in the polynomial modulus x^N + 1
-  modulus_degree: jnp.uint32
+  modulus_degree: jnp.uint32  # pyrefly: ignore[not-a-type]
 
   # the number of samples chosen, equal to len(RlweCiphertext) - 1
-  rlwe_dimension: jnp.uint32
+  rlwe_dimension: jnp.uint32  # pyrefly: ignore[not-a-type]
 
   # the binary polynomial values (s_1, ..., s_{rlwe_dimension})
   # used as a dot product multiplicand when encrypting.
@@ -100,7 +100,7 @@ class RlweSecretKey:
   data: jnp.ndarray
 
   @property
-  def coefficient_modulus(self) -> jnp.uint32:
+  def coefficient_modulus(self) -> jnp.uint32:  # pyrefly: ignore[not-a-type]
     return jnp.uint32(2) ** self.log_coefficient_modulus
 
 
@@ -114,7 +114,7 @@ def gen_key(
       rlwe_dimension=params.rlwe_dimension,
       data=prg.sk_uniform(
           shape=(params.rlwe_dimension, params.polynomial_modulus_degree),
-          dtype=jnp.uint32,
+          dtype=jnp.uint32,  # pyrefly: ignore[bad-argument-type]
       ),
   )
 
@@ -125,7 +125,7 @@ def encrypt(
   """Encrypt an RLWE plaintext."""
   ai_samples = prg.uniform(
       shape=(sk.rlwe_dimension, sk.modulus_degree),
-      dtype=jnp.uint32,
+      dtype=jnp.uint32,  # pyrefly: ignore[bad-argument-type]
   )
   error_sample = prg.rounded_normal(shape=(sk.modulus_degree,)).astype(
       jnp.uint32
