@@ -31,7 +31,7 @@ _BUILD_LOCK = threading.Lock()
 
 
 def _jaxlib_include_dir() -> pathlib.Path:
-  import jaxlib  # pytype: disable=import-error
+  import jaxlib  # pyrefly: ignore[missing-import]
 
   return pathlib.Path(jaxlib.__file__).resolve().parent / "include"
 

@@ -17,10 +17,10 @@ import numpy as np
 class BarrettConstants:
   """Precomputed constants for Barrett reduction."""
 
-  m: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pytype: disable=annotation-type-mismatch
-  moduli: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pytype: disable=annotation-type-mismatch
-  w: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pytype: disable=annotation-type-mismatch
-  s_w: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pytype: disable=annotation-type-mismatch
+  m: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pyrefly: ignore[bad-assignment]
+  moduli: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pyrefly: ignore[bad-assignment]
+  w: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pyrefly: ignore[bad-assignment]
+  s_w: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pyrefly: ignore[bad-assignment]
 
   def tree_flatten(self):
     children = (self.m, self.moduli, self.w, self.s_w)

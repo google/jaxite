@@ -1080,7 +1080,7 @@ class CROSSLazyContext(LazyContextBase, JaxKernelContextBase):
       ]
     return [jax.ShapeDtypeStruct(operand_shape, jnp.uint32)]
 
-  def serialize(self, parameters):  # pytype: disable=signature-mismatch
+  def serialize(self, parameters):
     shape_dtype_structs = self._get_shape_dtype_structs(parameters)
     kernel_hash = hash_args(self.context_hash(), parameters)
     class_name = self.__class__.__name__
@@ -1114,7 +1114,7 @@ class CROSSLazyContext(LazyContextBase, JaxKernelContextBase):
         name=f"{class_name}_modular_negate_{kernel_hash}",
     )
 
-  def compile(self, parameters):  # pytype: disable=signature-mismatch
+  def compile(self, parameters):
     shape_dtype_structs = self._get_shape_dtype_structs(parameters)
     kernel_hash = hash_args(self.context_hash(), parameters)
     class_name = self.__class__.__name__

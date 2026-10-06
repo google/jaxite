@@ -81,7 +81,7 @@ class AddModularSubtract(AddBase):
   modulus-1]), so that their sum is less than 2 * modulus.
   """
 
-  moduli: jax.Array = np.array([], dtype=np.uint32)  # pytype: disable=annotation-type-mismatch
+  moduli: jax.Array = np.array([], dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
 
   def precompute_constants(self, moduli: Iterable[int]):
     self.moduli = jnp.array(list(moduli), dtype=jnp.uint32)

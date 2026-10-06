@@ -428,8 +428,8 @@ class Mul:
 
       # Basis change to non-selected towers + extend towers
       # control_index = part + 1 (since index 0 is for approx mod down)
-      part_ct_clone_eval = self.bconv.basis_change(  # pyrefly: ignore[missing-argument]
-          part_ct_clone_coef, control_index=part + 1  # pyrefly: ignore[bad-argument-type]
+      part_ct_clone_eval = self.bconv.basis_change(
+          part_ct_clone_coef, control_index=part + 1
       )
 
       # Convert basis-changed part to NTT form
@@ -477,11 +477,11 @@ class Mul:
         ks_res1 = prod_a.astype(jnp.uint64)
       else:
         ks_res0 = ks_res0 + prod_b.astype(jnp.uint64)
-        ks_res1 = ks_res1 + prod_a.astype(jnp.uint64)  # pyrefly: ignore[unsupported-operation]
+        ks_res1 = ks_res1 + prod_a.astype(jnp.uint64)
 
     # Apply modulo reduction once after the loop
-    ks_res0 = barrett.modular_reduction(ks_res0, self.full_barrett_constants)  # pyrefly: ignore[bad-argument-type]
-    ks_res1 = barrett.modular_reduction(ks_res1, self.full_barrett_constants)  # pyrefly: ignore[bad-argument-type]
+    ks_res0 = barrett.modular_reduction(ks_res0, self.full_barrett_constants)
+    ks_res1 = barrett.modular_reduction(ks_res1, self.full_barrett_constants)
 
     keyswitch_core_res = jnp.concatenate(
         [ks_res0, ks_res1], axis=-3
@@ -505,7 +505,7 @@ class Mul:
 
     # Basis change from P to Q (drop_last)
     # control_index=0 is for approx mod down
-    ct_new_basis_coef = self.bconv.basis_change(p_part_coeffs, control_index=0)  # pyrefly: ignore[bad-argument-type, missing-argument]
+    ct_new_basis_coef = self.bconv.basis_change(p_part_coeffs, control_index=0)
 
     # Convert back to NTT form
     ct_new_basis_coef_reshaped = ct_new_basis_coef.reshape(

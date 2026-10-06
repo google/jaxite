@@ -35,14 +35,14 @@ class KeySwitcher:
 
   ntt_kernels_q: list[ntt.NTTBarrett] = []
   ntt_kernels_out: list[ntt.NTTBarrett] = []
-  p_limbs: jax.Array = np.array([], dtype=np.uint32)  # pytype: disable=annotation-type-mismatch
+  p_limbs: jax.Array = np.array([], dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
   bc_kernel: basis_conversion.BasisConversionBarrett = (
       basis_conversion.BasisConversionBarrett()
   )
   mul_kernel: mul.MulPlaintextCiphertextBarrett = (
       mul.MulPlaintextCiphertextBarrett()
   )
-  p_mod_q: jax.Array = np.array([], dtype=np.uint64)  # pytype: disable=annotation-type-mismatch
+  p_mod_q: jax.Array = np.array([], dtype=np.uint64)  # pyrefly: ignore[bad-assignment]
 
   def precompute_constants(
       self,
@@ -166,8 +166,8 @@ class KeySwitcher:
 
       # Basis change to out_moduli
       control_index_loop = start_control_index + i
-      c1_part_out_coeffs = self.bc_kernel.basis_change(  # pyrefly: ignore[missing-argument]
-          c1_part_coeffs, control_index=control_index_loop  # pyrefly: ignore[bad-argument-type]
+      c1_part_out_coeffs = self.bc_kernel.basis_change(
+          c1_part_coeffs, control_index=control_index_loop
       )
 
       # Convert back to NTT domain modulo out_moduli

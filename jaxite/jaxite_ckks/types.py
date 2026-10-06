@@ -71,9 +71,9 @@ class SecretKey:
 class EvaluationKeys:
   """CKKS Evaluation Keys."""
 
-  a: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0, 0, 0)))  # pytype: disable=annotation-type-mismatch
-  b: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0, 0, 0)))  # pytype: disable=annotation-type-mismatch
-  moduli: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pytype: disable=annotation-type-mismatch
+  a: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0, 0, 0)))  # pyrefly: ignore[bad-assignment]
+  b: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0, 0, 0)))  # pyrefly: ignore[bad-assignment]
+  moduli: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pyrefly: ignore[bad-assignment]
 
   def tree_flatten(self):
     return (self.a, self.b, self.moduli), ()

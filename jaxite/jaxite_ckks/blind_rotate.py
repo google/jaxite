@@ -43,11 +43,11 @@ class BlindRotation:
   ntt_q: ntt.NTTBarrett = ntt.NTTBarrett()
   ntt_p: ntt.NTTBarrett = ntt.NTTBarrett()
 
-  q_limbs: jax.Array = np.empty((0,), dtype=np.uint32)  # pytype: disable=annotation-type-mismatch
-  p_limbs: jax.Array = np.empty((0,), dtype=np.uint32)  # pytype: disable=annotation-type-mismatch
-  all_moduli: jax.Array = np.empty((0,), dtype=np.uint32)  # pytype: disable=annotation-type-mismatch
-  q_limbs_u64_expanded: jax.Array = np.empty((1, 1, 0), dtype=np.uint64)  # pytype: disable=annotation-type-mismatch
-  all_moduli_u64_expanded: jax.Array = np.empty((1, 1, 0), dtype=np.uint64)  # pytype: disable=annotation-type-mismatch
+  q_limbs: jax.Array = np.empty((0,), dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
+  p_limbs: jax.Array = np.empty((0,), dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
+  all_moduli: jax.Array = np.empty((0,), dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
+  q_limbs_u64_expanded: jax.Array = np.empty((1, 1, 0), dtype=np.uint64)  # pyrefly: ignore[bad-assignment]
+  all_moduli_u64_expanded: jax.Array = np.empty((1, 1, 0), dtype=np.uint64)  # pyrefly: ignore[bad-assignment]
 
   def tree_flatten(self):
     """Flattens the BlindRotation object for JAX PyTree serialization."""

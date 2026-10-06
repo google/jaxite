@@ -85,7 +85,7 @@ class SHIP:
   final_ntt: ntt.NTTBarrett = ntt.NTTBarrett()
   brot_kernel: blind_rotate.BlindRotation = blind_rotate.BlindRotation()
   online_encoder: boot_utils.OnlineEncoder = boot_utils.OnlineEncoder()
-  nonzero_idx: jax.Array = np.array([], dtype=np.uint32)  # pytype: disable=annotation-type-mismatch
+  nonzero_idx: jax.Array = np.array([], dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
   cmkeys: list[list[list[types.Ciphertext]]] = []
   mmkeys: list[types.MuxRotationKey] = []
   conjk: types.EvaluationKeys = types.EvaluationKeys()

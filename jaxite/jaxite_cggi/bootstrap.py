@@ -476,7 +476,7 @@ def jit_cmux(
   """A jitted cmux."""
   return (
       eq_zero
-      + jit_external_product(  # pytype: disable=bad-return-type  # jax-ndarray
+      + jit_external_product(
           rgsw_ct=control,
           rlwe_ct=neq_zero - eq_zero,
           decomposition_params=decomposition_params,

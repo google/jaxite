@@ -96,7 +96,7 @@ def decrypt(
     encoding_params: encoding.EncodingParameters,
 ) -> types.LweCleartext:
   """Decrypt and remove the noise from an LWE ciphertext."""
-  return encoding.remove_noise(  # pytype: disable=bad-return-type  # jax-ndarray
+  return encoding.remove_noise(  # pyrefly: ignore[bad-return]
       decrypt_without_denoising(ciphertext, sk), encoding_params
   )
 

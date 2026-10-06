@@ -31,7 +31,7 @@ class SpecialInverseFFT:
   """Kernel for specialized inverse FFT for CKKS slots encoding."""
 
   degree: int = 0
-  br_indices: jax.Array = dataclasses.field(  # pytype: disable=annotation-type-mismatch
+  br_indices: jax.Array = dataclasses.field(  # pyrefly: ignore[bad-assignment]
       default_factory=lambda: np.empty((0,), dtype=np.int32)
   )
   level_roots_real: tuple[jax.Array, ...] = ()
