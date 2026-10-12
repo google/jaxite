@@ -34,8 +34,10 @@ py_library(
         ],
     ),
     deps = [
+        "@jaxite_deps//absl/testing:absltest",
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
+        # copybara: jax/experimental:pallas_lib
         "@jaxite_deps//numpy",
     ],
 )
@@ -756,6 +758,7 @@ cpu_gpu_tpu_test(
     timeout = "long",
     srcs = ["jaxite/jaxite_ckks/key_switching_test.py"],
     main = "jaxite/jaxite_ckks/key_switching_test.py",
+    shard_count = 7,
     deps = [
         ":jaxite_ckks",
         "@abseil-py//absl/testing:absltest",
@@ -805,7 +808,7 @@ cpu_gpu_tpu_test(
     timeout = "long",
     srcs = ["jaxite/jaxite_ckks/bootstrapping_test.py"],
     main = "jaxite/jaxite_ckks/bootstrapping_test.py",
-    shard_count = 6,
+    shard_count = 10,
     deps = [
         ":jaxite_ckks",
         "@abseil-py//absl/testing:absltest",

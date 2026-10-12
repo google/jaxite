@@ -21,45 +21,47 @@ from jaxite.jaxite_ckks import key_switching
 from jaxite.jaxite_ckks import mul
 from jaxite.jaxite_ckks import rescale
 from jaxite.jaxite_ckks import types
+import numpy as np
 
 
 @jax.tree_util.register_pytree_node_class
 class Conjugation:
   """Kernel for homomorphic conjugation on TPU."""
 
-  key_switcher: key_switching.KeySwitcher = key_switching.KeySwitcher()
+  key_switcher: key_switching.BATKeySwitcher = key_switching.BATKeySwitcher()
   rescale_kernel: rescale.Rescale = rescale.Rescale()
-  conj_key: types.EvaluationKeys = types.EvaluationKeys()
+  conj_key_bat: jax.Array = np.array([], dtype=np.uint8)  # pyrefly: ignore[bad-assignment]
   start_control_index: int = 0
 
   def precompute_constants(
       self,
       q_limbs: list[int],
       p_limbs: list[int],
-      dnum: int,
       r: int,
       c: int,
       bc_kernel: basis_conversion.BasisConversionBarrett,
       mul_kernel: mul.MulPlaintextCiphertextBarrett,
       rescale_kernel: rescale.Rescale,
       conj_key: types.EvaluationKeys,
+      key1: types.Ciphertext,
       start_control_index: int,
   ):
+    self.key_switcher = key_switching.BATKeySwitcher()
     self.key_switcher.precompute_constants(
         q_limbs,
         p_limbs,
-        dnum,
         r,
         c,
         bc_kernel=bc_kernel,
         mul_kernel=mul_kernel,
+        rescale_kernel=rescale_kernel,
     )
     self.rescale_kernel = rescale_kernel
-    self.conj_key = conj_key
+    self.conj_key_bat = self.key_switcher.transform_key_to_bat(conj_key, key1)
     self.start_control_index = start_control_index
 
   def tree_flatten(self):
-    children = (self.key_switcher, self.rescale_kernel, self.conj_key)
+    children = (self.key_switcher, self.rescale_kernel, self.conj_key_bat)
     aux_data = (self.start_control_index,)
     return (children, aux_data)
 
@@ -68,7 +70,7 @@ class Conjugation:
     obj = cls()
     obj.key_switcher = children[0]
     obj.rescale_kernel = children[1]
-    obj.conj_key = children[2]
+    obj.conj_key_bat = children[2]
     obj.start_control_index = aux_data[0]
     return obj
 
@@ -80,13 +82,11 @@ class Conjugation:
         moduli=ct.moduli,
     )
 
-    # 2. Key Switch: convert ct_conj from Q to P
-    ct_prime = self.key_switcher.key_switch(
+    # 2. Key Switch: convert ct_conj from Q to P (also rescales)
+    ct_switched = self.key_switcher.key_switch(
         ct=ct_conj,
-        ksk=self.conj_key,
-        start_control_index=self.start_control_index,
+        key_matrix_bat=self.conj_key_bat,
+        control_index=self.start_control_index,
     )
 
-    # 3. Rescale by P to drop auxiliary modulus and divide by P
-    self.rescale_kernel.rescale(ct_prime)
-    return ct_prime
+    return ct_switched

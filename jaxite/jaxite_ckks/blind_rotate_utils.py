@@ -101,7 +101,7 @@ def lift_ciphertext(
 
   # 6. Concatenate Q (NTT) and P (NTT)
   data_pq = jnp.concatenate([ct.data, data_p_ntt_flat], axis=-1)
-  moduli_pq = jnp.concatenate([ct.moduli, jnp.asarray(p_limbs)]).astype(
-      jnp.uint32
+  moduli_pq = jnp.concatenate(
+      [ct.moduli, jnp.asarray(p_limbs, dtype=ct.moduli.dtype)]
   )
   return types.Ciphertext(data=data_pq, moduli=moduli_pq)

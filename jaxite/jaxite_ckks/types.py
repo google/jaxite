@@ -76,11 +76,11 @@ class EvaluationKeys:
   moduli: jax.Array = dataclasses.field(default_factory=lambda: np.empty((0,)))  # pyrefly: ignore[bad-assignment]
 
   def tree_flatten(self):
-    return (self.a, self.b, self.moduli), ()
+    return (self.a, self.b, self.moduli), None
 
   @classmethod
   def tree_unflatten(cls, _, children):
-    return cls(*children)
+    return cls(children[0], children[1], children[2])
 
 
 @jax.tree_util.register_pytree_node_class
