@@ -200,7 +200,7 @@ class RescaleTest(parameterized.TestCase):
         data=jnp.zeros((2, 16, 3), dtype=jnp.uint32),
         moduli=jnp.array(cls.moduli, dtype=jnp.uint32),
     )
-    cls.rescale_kernel.rescale(dummy_ct)
+    dummy_ct = cls.rescale_kernel.rescale(dummy_ct)
 
   @parameterized.parameters(
       (MODULI_1, IN_DATA_1, OUT_DATA_1),
@@ -216,7 +216,7 @@ class RescaleTest(parameterized.TestCase):
 
     rescale_kernel = rescale.Rescale()
     rescale_kernel.precompute_constants(moduli, num_rescales, r, c)
-    rescale_kernel.rescale(ct)
+    ct = rescale_kernel.rescale(ct)
 
     np.testing.assert_array_equal(ct.data, expected_out)
     np.testing.assert_array_equal(ct.moduli, moduli[:-1])
@@ -256,7 +256,7 @@ class RescaleTest(parameterized.TestCase):
     random_source = random.TestRandomSource(5678)
     ct = encryptor.encrypt(pt, random_source=random_source)
 
-    self.rescale_kernel.rescale(ct)
+    ct = self.rescale_kernel.rescale(ct)
 
     decryptor = encrypt.Decrypt(self.sk)
     pt_dec = decryptor.decrypt(ct)
@@ -281,7 +281,7 @@ class RescaleTest(parameterized.TestCase):
     random_source = random.TestRandomSource(4567)
     ct = encryptor.encrypt(pt, random_source=random_source)
 
-    self.rescale_kernel.rescale(ct)
+    ct = self.rescale_kernel.rescale(ct)
 
     decryptor = encrypt.Decrypt(self.sk)
     pt_dec = decryptor.decrypt(ct)
@@ -311,7 +311,7 @@ class RescaleTest(parameterized.TestCase):
 
     rescale_kernel = rescale.Rescale()
     rescale_kernel.precompute_constants(moduli, num_rescales=1, r=4, c=4)
-    rescale_kernel.rescale(ct)
+    ct = rescale_kernel.rescale(ct)
 
     decryptor = encrypt.Decrypt(sk)
     pt_dec = decryptor.decrypt(ct)
@@ -344,7 +344,7 @@ class RescaleTest(parameterized.TestCase):
 
     rescale_kernel = rescale.Rescale()
     rescale_kernel.precompute_constants(moduli, num_rescales=2, r=4, c=4)
-    rescale_kernel.rescale(ct)
+    ct = rescale_kernel.rescale(ct)
 
     decryptor = encrypt.Decrypt(sk)
     pt_dec = decryptor.decrypt(ct)
@@ -377,7 +377,7 @@ class RescaleTest(parameterized.TestCase):
 
     rescale_kernel = rescale.Rescale()
     rescale_kernel.precompute_constants(moduli, 1, 2, 4)
-    rescale_kernel.rescale(ct)
+    ct = rescale_kernel.rescale(ct)
 
     decryptor = encrypt.Decrypt(sk)
     pt_dec = decryptor.decrypt(ct)
@@ -405,7 +405,7 @@ class RescaleHypothesisTest(absltest.TestCase):
         data=jnp.zeros((2, cls.DEGREE, len(cls.MODULI)), dtype=jnp.uint32),
         moduli=jnp.array(cls.MODULI, dtype=jnp.uint32),
     )
-    cls.rescale_kernel.rescale(dummy_ct)
+    dummy_ct = cls.rescale_kernel.rescale(dummy_ct)
     cls.random_source = random.TestRandomSource(123)
     cls.pk, cls.sk = key_gen.keygen(cls.DEGREE, cls.MODULI, cls.random_source)
     cls.encryptor = encrypt.Encrypt(cls.pk)
@@ -429,7 +429,7 @@ class RescaleHypothesisTest(absltest.TestCase):
     pt = encoder.encode(slots)
 
     ct = self.encryptor.encrypt(pt, random_source=self.random_source)
-    self.rescale_kernel.rescale(ct)
+    ct = self.rescale_kernel.rescale(ct)
     pt_dec = self.decryptor.decrypt(ct)
 
     decoder = encode.Decode(output_scale, len(slots))

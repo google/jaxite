@@ -19,9 +19,11 @@ from hypothesis import strategies as st
 import jax
 import jax.numpy as jnp
 from jaxite.jaxite_ckks import blind_rotate
+from jaxite.jaxite_ckks import bootstrapping
 from jaxite.jaxite_ckks import encode
 from jaxite.jaxite_ckks import encrypt
 from jaxite.jaxite_ckks import key_gen
+from jaxite.jaxite_ckks import key_switching
 from jaxite.jaxite_ckks import ntt
 from jaxite.jaxite_ckks import random
 from jaxite.jaxite_ckks import types
@@ -144,7 +146,6 @@ class BlindRotateTest(parameterized.TestCase):
         degree, q_limbs, random_source=test_random_source
     )
     # 2. Generate Mux Rotation Key for secret index
-    # We choose the secret index bits corresponding to secret_idx
     num_bits = int(np.log2(num_slots))
     secret_bits = [int((secret_idx >> k) & 1) for k in range(num_bits)]
     mux_key = key_gen.gen_mux_rotation_key(
@@ -179,9 +180,29 @@ class BlindRotateTest(parameterized.TestCase):
         num_rescales=1,
     )
 
+    bat_switcher = brot_kernel.bat_switcher
+    mux_key_bat_keys = []
+    for hmrkey0, hmrkey1 in mux_key.keys:
+      ksk0 = types.EvaluationKeys(
+          a=hmrkey0.key0.data[1:2],
+          b=hmrkey0.key0.data[0:1],
+          moduli=hmrkey0.key0.moduli,
+      )
+      bat_key0 = bat_switcher.transform_key_to_bat(ksk0, hmrkey0.key1)
+
+      ksk1 = types.EvaluationKeys(
+          a=hmrkey1.key0.data[1:2],
+          b=hmrkey1.key0.data[0:1],
+          moduli=hmrkey1.key0.moduli,
+      )
+      bat_key1 = bat_switcher.transform_key_to_bat(ksk1, hmrkey1.key1)
+      mux_key_bat_keys.append((bat_key0, bat_key1))
+    permutations = mux_key.permutations
+
     ct_res = brot_kernel.brot_mux(
         ct_in=ct_in,
-        mux_key=mux_key,
+        mux_key_bat=mux_key_bat_keys,
+        permutations=permutations,
         control_index=0,
     )
 
@@ -196,114 +217,6 @@ class BlindRotateTest(parameterized.TestCase):
     mu_full[:num_slots] = mu
     expected_full = _cyclic_roll(mu_full, secret_idx)
     expected = expected_full[:num_slots]
-    for e, d in zip(expected, decoded):
-      self.assertAlmostEqual(e.real, d.real, delta=1.5)
-      self.assertAlmostEqual(e.imag, d.imag, delta=1.5)
-
-  @parameterized.named_parameters(
-      ("secret_idx_0_theta_2", 4, 0, 2),
-      ("secret_idx_1_theta_2", 4, 1, 2),
-      ("secret_idx_2_theta_2", 4, 2, 2),
-      ("secret_idx_3_theta_2", 4, 3, 2),
-      ("secret_idx_5_theta_4", 8, 5, 4),
-      ("secret_idx_9_theta_4", 16, 9, 4),
-      ("dense_8_slots_theta_4", 8, 7, 4),
-      ("case_16_3_8", 16, 3, 8),
-      ("case_16_15_2", 16, 15, 2),
-      ("case_64_55_16", 64, 55, 16),
-      ("dense_512_slots_theta_16", 512, 123, 16),
-  )
-  def test_brot_hybrid(self, num_slots, secret_idx, theta):
-    degree = max(1024, 2 * num_slots)
-    r = 32
-    q_limbs = [1073184769]
-    p_limbs = [1073479681]
-    all_moduli = q_limbs + p_limbs
-    scale = 2**22
-
-    # 1. Generate keys
-    test_random_source = random.ZeroNoiseRandomSource()
-    _, sk_q = key_gen.keygen(degree, q_limbs, random_source=test_random_source)
-
-    # Generate hybrid key under PQ, with s_j = 1
-    cmkey_hybrid, mmkey_hybrid = key_gen.gen_hybrid_key(
-        sk=sk_q,
-        j=secret_idx,
-        idx=secret_idx,
-        s_j=1,
-        theta=theta,
-        q_limbs=q_limbs,
-        p_limbs=p_limbs,
-        random_source=test_random_source,
-    )
-
-    # 2. Define input message w1 and w2 (slots)
-    #
-    # To test the algebraic correctness of `brot_hybrid` (Algorithm 4) in isolation,
-    # we verify its underlying linear combination property.
-    # For a secret index j with value s_j = 1, `gen_hybrid_key` embeds rotation
-    # masks m^{(k)} and the giant-step/baby-step decomposition of j into the keys.
-    # When `brot_hybrid` is executed, it homomorphically evaluates:
-    #   ct_out = sum_k m^{(k)} * roll(pt_k, j)
-    # Decrypting ct_out yields the masked linear combination of the rolled slot vectors:
-    #   expected = mask_base * roll(w1, j) + (1 - mask_base) * roll(conj(w2), j)
-    # This verifies that the giant-step column multiplication and baby-step MUX-based
-    # rotations correctly align, shift, and combine the slot components.
-    w1 = np.array(
-        [complex(x % 4 + 1, x % 4 + 2) for x in range(num_slots)], dtype=complex
-    )
-    w2 = np.array(
-        [complex(x % 3 + 3, x % 3 + 1) for x in range(num_slots)], dtype=complex
-    )
-
-    reps = degree // (2 * num_slots)
-    w1_full = np.tile(w1, reps)
-    w2_full = np.tile(w2, reps)
-
-    encoder_pq = encode.Encode(degree, all_moduli, scale)
-    pt1 = encoder_pq.encode(w1_full.tolist())
-    pt2 = encoder_pq.encode(np.conj(w1_full).tolist())
-    pt3 = encoder_pq.encode(w2_full.tolist())
-    pt4 = encoder_pq.encode(np.conj(w2_full).tolist())
-    pts = [pt1, pt2, pt3, pt4]
-
-    # 3. Run homomorphic BRotHybrid using BlindRotation kernel class
-    brot_kernel = blind_rotate.BlindRotation()
-    brot_kernel.precompute_constants(
-        q_limbs=q_limbs,
-        p_limbs=p_limbs,
-        dnum=1,
-        r=r,
-        c=degree // r,
-        num_rescales=1,
-    )
-
-    ct_res = brot_kernel.brot_hybrid(
-        pts=pts,
-        cmkey_hybrid=cmkey_hybrid,
-        mmkey_hybrid=mmkey_hybrid,
-        theta=theta,
-        control_index=0,
-    )
-
-    # 4. Decrypt and verify result
-    decryptor_q = encrypt.Decrypt(sk_q)
-    pt_dec = decryptor_q.decrypt(ct_res)
-
-    decoder = encode.Decode(scale, num_slots)
-    decoded = decoder.decode(pt_dec)
-    full_slots = degree // 2
-    reps = degree // (2 * num_slots)
-    w1_full = np.tile(w1, reps)
-    w2_full = np.tile(np.conj(w2), reps)
-    rot_amount = int(secret_idx % full_slots)
-    mask_base = np.zeros(full_slots, dtype=complex)
-    mask_base[rot_amount:] = 1.0
-    expected_full = mask_base * _cyclic_roll(w1_full, secret_idx) + (
-        1.0 - mask_base
-    ) * _cyclic_roll(w2_full, secret_idx)
-    expected = expected_full[:num_slots]
-
     for e, d in zip(expected, decoded):
       self.assertAlmostEqual(e.real, d.real, delta=1.5)
       self.assertAlmostEqual(e.imag, d.imag, delta=1.5)
@@ -375,16 +288,56 @@ class BlindRotateTest(parameterized.TestCase):
         num_rescales=1,
     )
 
+    bat_switcher = brot_kernel.bat_switcher
+
+    # Transform key r
+    mux_key_r_bat_keys = []
+    for hmrkey0, hmrkey1 in mux_key_r.keys:
+      ksk0 = types.EvaluationKeys(
+          a=hmrkey0.key0.data[1:2],
+          b=hmrkey0.key0.data[0:1],
+          moduli=hmrkey0.key0.moduli,
+      )
+      bat_key0 = bat_switcher.transform_key_to_bat(ksk0, hmrkey0.key1)
+      ksk1 = types.EvaluationKeys(
+          a=hmrkey1.key0.data[1:2],
+          b=hmrkey1.key0.data[0:1],
+          moduli=hmrkey1.key0.moduli,
+      )
+      bat_key1 = bat_switcher.transform_key_to_bat(ksk1, hmrkey1.key1)
+      mux_key_r_bat_keys.append((bat_key0, bat_key1))
+    permutations_r = mux_key_r.permutations
+
     ct_r = brot_kernel.brot_mux(
         ct_in=ct_in,
-        mux_key=mux_key_r,
+        mux_key_bat=mux_key_r_bat_keys,
+        permutations=permutations_r,
         control_index=0,
     )
+
+    # Transform key len - r
+    mux_key_len_minus_r_bat_keys = []
+    for hmrkey0, hmrkey1 in mux_key_len_minus_r.keys:
+      ksk0 = types.EvaluationKeys(
+          a=hmrkey0.key0.data[1:2],
+          b=hmrkey0.key0.data[0:1],
+          moduli=hmrkey0.key0.moduli,
+      )
+      bat_key0 = bat_switcher.transform_key_to_bat(ksk0, hmrkey0.key1)
+      ksk1 = types.EvaluationKeys(
+          a=hmrkey1.key0.data[1:2],
+          b=hmrkey1.key0.data[0:1],
+          moduli=hmrkey1.key0.moduli,
+      )
+      bat_key1 = bat_switcher.transform_key_to_bat(ksk1, hmrkey1.key1)
+      mux_key_len_minus_r_bat_keys.append((bat_key0, bat_key1))
+    permutations_len_minus_r = mux_key_len_minus_r.permutations
 
     # 5. Perform second rotation by len - r
     ct_final = brot_kernel.brot_mux(
         ct_in=ct_r,
-        mux_key=mux_key_len_minus_r,
+        mux_key_bat=mux_key_len_minus_r_bat_keys,
+        permutations=permutations_len_minus_r,
         control_index=0,
     )
 
@@ -395,6 +348,128 @@ class BlindRotateTest(parameterized.TestCase):
     decoded = decoder.decode(pt_dec)
 
     expected = mu
+    for e, d in zip(expected, decoded):
+      self.assertAlmostEqual(e.real, d.real, delta=1.5)
+      self.assertAlmostEqual(e.imag, d.imag, delta=1.5)
+
+  @parameterized.named_parameters(
+      ("secret_idx_0_theta_2", 4, 0, 2),
+      ("secret_idx_1_theta_2", 4, 1, 2),
+      ("secret_idx_2_theta_2", 4, 2, 2),
+      ("secret_idx_3_theta_2", 4, 3, 2),
+      ("secret_idx_5_theta_4", 8, 5, 4),
+      ("secret_idx_9_theta_4", 16, 9, 4),
+      ("dense_8_slots_theta_4", 8, 7, 4),
+      ("secret_idx_10_theta_4_slots_8", 8, 10, 4),
+      ("case_16_3_8", 16, 3, 8),
+      ("case_16_15_2", 16, 15, 2),
+      ("case_64_55_16", 64, 55, 16),
+      ("dense_512_slots_theta_16", 512, 123, 16),
+  )
+  def test_brot_hybrid(self, num_slots, secret_idx, theta):
+    degree = max(1024, 2 * num_slots)
+    r = 32
+    q_limbs = [1073184769]
+    p_limbs = [1073479681]
+    all_moduli = q_limbs + p_limbs
+    scale = 2**22
+
+    # 1. Generate keys
+    test_random_source = random.ZeroNoiseRandomSource()
+    _, sk_q = key_gen.keygen(degree, q_limbs, random_source=test_random_source)
+
+    # Generate hybrid key under PQ, with s_j = 1
+    cmkey_hybrid, mmkey_hybrid = key_gen.gen_hybrid_key(
+        sk=sk_q,
+        j=secret_idx,
+        idx=secret_idx,
+        s_j=1,
+        theta=theta,
+        q_limbs=q_limbs,
+        p_limbs=p_limbs,
+        random_source=test_random_source,
+    )
+
+    # 2. Define input message w1 and w2 (slots)
+    w1 = np.array(
+        [complex(x % 4 + 1, x % 4 + 2) for x in range(num_slots)], dtype=complex
+    )
+    w2 = np.array(
+        [complex(x % 3 + 3, x % 3 + 1) for x in range(num_slots)], dtype=complex
+    )
+
+    reps = degree // (2 * num_slots)
+    w1_full = np.tile(w1, reps)
+    w2_full = np.tile(w2, reps)
+
+    encoder_pq = encode.Encode(degree, all_moduli, scale)
+    pt1 = encoder_pq.encode(w1_full.tolist())
+    pt2 = encoder_pq.encode(np.conj(w1_full).tolist())
+    pt3 = encoder_pq.encode(w2_full.tolist())
+    pt4 = encoder_pq.encode(np.conj(w2_full).tolist())
+    pts = [pt1, pt2, pt3, pt4]
+
+    # 3. Run homomorphic BRotHybrid using Evolved BAT
+    brot_kernel = blind_rotate.BlindRotation()
+    brot_kernel.precompute_constants(
+        q_limbs=q_limbs,
+        p_limbs=p_limbs,
+        dnum=1,
+        r=r,
+        c=degree // r,
+        num_rescales=1,
+    )
+
+    bat_switcher = brot_kernel.bat_switcher
+
+    # Transform Mux keys to BAT format
+    mmkey_hybrid_bat_keys = []
+    for hmrkey0, hmrkey1 in mmkey_hybrid.keys:
+      # Transform key0
+      ksk0 = types.EvaluationKeys(
+          a=hmrkey0.key0.data[1:2],
+          b=hmrkey0.key0.data[0:1],
+          moduli=hmrkey0.key0.moduli,
+      )
+      bat_key0 = bat_switcher.transform_key_to_bat(ksk0, hmrkey0.key1)
+
+      # Transform key1
+      ksk1 = types.EvaluationKeys(
+          a=hmrkey1.key0.data[1:2],
+          b=hmrkey1.key0.data[0:1],
+          moduli=hmrkey1.key0.moduli,
+      )
+      bat_key1 = bat_switcher.transform_key_to_bat(ksk1, hmrkey1.key1)
+      mmkey_hybrid_bat_keys.append((bat_key0, bat_key1))
+
+    permutations = mmkey_hybrid.permutations
+
+    ct_res = brot_kernel.brot_hybrid(
+        pts=pts,
+        cmkey_hybrid=cmkey_hybrid,
+        mmkey_hybrid_bat=mmkey_hybrid_bat_keys,
+        permutations=permutations,
+        theta=theta,
+        control_index=0,
+    )
+
+    # 4. Decrypt and verify result
+    decryptor_q = encrypt.Decrypt(sk_q)
+    pt_dec = decryptor_q.decrypt(ct_res)
+
+    decoder = encode.Decode(scale, num_slots)
+    decoded = decoder.decode(pt_dec)
+    full_slots = degree // 2
+    reps = degree // (2 * num_slots)
+    w1_full = np.tile(w1, reps)
+    w2_full = np.tile(np.conj(w2), reps)
+    rot_amount = int(secret_idx % full_slots)
+    mask_base = np.zeros(full_slots, dtype=complex)
+    mask_base[rot_amount:] = 1.0
+    expected_full = mask_base * _cyclic_roll(w1_full, secret_idx) + (
+        1.0 - mask_base
+    ) * _cyclic_roll(w2_full, secret_idx)
+    expected = expected_full[:num_slots]
     for e, d in zip(expected, decoded):
       self.assertAlmostEqual(e.real, d.real, delta=1.5)
       self.assertAlmostEqual(e.imag, d.imag, delta=1.5)
@@ -474,6 +549,43 @@ class BlindRotationHypothesisTest(absltest.TestCase):
         num_rescales=1,
     )
 
+    # Transform Mux keys to BAT
+    cls.bat_switcher = cls.brot_kernel.bat_switcher
+    cls.mux_key_bat_keys = []
+    for hmrkey0, hmrkey1 in cls.mux_key.keys:
+      ksk0 = types.EvaluationKeys(
+          a=hmrkey0.key0.data[1:2],
+          b=hmrkey0.key0.data[0:1],
+          moduli=hmrkey0.key0.moduli,
+      )
+      bat_key0 = cls.bat_switcher.transform_key_to_bat(ksk0, hmrkey0.key1)
+      ksk1 = types.EvaluationKeys(
+          a=hmrkey1.key0.data[1:2],
+          b=hmrkey1.key0.data[0:1],
+          moduli=hmrkey1.key0.moduli,
+      )
+      bat_key1 = cls.bat_switcher.transform_key_to_bat(ksk1, hmrkey1.key1)
+      cls.mux_key_bat_keys.append((bat_key0, bat_key1))
+    cls.mux_permutations = cls.mux_key.permutations
+
+    # Transform Hybrid key (Mux part) to BAT
+    cls.mmkey_hybrid_bat_keys = []
+    for hmrkey0, hmrkey1 in cls.mmkey_hybrid.keys:
+      ksk0 = types.EvaluationKeys(
+          a=hmrkey0.key0.data[1:2],
+          b=hmrkey0.key0.data[0:1],
+          moduli=hmrkey0.key0.moduli,
+      )
+      bat_key0 = cls.bat_switcher.transform_key_to_bat(ksk0, hmrkey0.key1)
+      ksk1 = types.EvaluationKeys(
+          a=hmrkey1.key0.data[1:2],
+          b=hmrkey1.key0.data[0:1],
+          moduli=hmrkey1.key0.moduli,
+      )
+      bat_key1 = cls.bat_switcher.transform_key_to_bat(ksk1, hmrkey1.key1)
+      cls.mmkey_hybrid_bat_keys.append((bat_key0, bat_key1))
+    cls.hybrid_permutations = cls.mmkey_hybrid.permutations
+
     # Setup joint NTT for encoding
     cls.ntt_pq = ntt.NTTBarrett()
     cls.ntt_pq.precompute_constants(cls.ALL_MODULI, r=4, c=4)
@@ -535,7 +647,8 @@ class BlindRotationHypothesisTest(absltest.TestCase):
 
     ct_res = self.brot_kernel.brot_mux(
         ct_in=ct_in,
-        mux_key=self.mux_key,
+        mux_key_bat=self.mux_key_bat_keys,
+        permutations=self.mux_permutations,
         control_index=0,
     )
 
@@ -577,7 +690,8 @@ class BlindRotationHypothesisTest(absltest.TestCase):
     ct_res = self.brot_kernel.brot_hybrid(
         pts=pts,
         cmkey_hybrid=self.cmkey_hybrid,
-        mmkey_hybrid=self.mmkey_hybrid,
+        mmkey_hybrid_bat=self.mmkey_hybrid_bat_keys,
+        permutations=self.hybrid_permutations,
         theta=self.THETA,
         control_index=0,
     )

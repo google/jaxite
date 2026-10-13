@@ -1,7 +1,9 @@
 """Basis Aligned Transformation (BAT) utilities for CKKS on TPU."""
 
+from typing import overload
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 # Enable 64-bit precision for large integer arithmetic
 jax.config.update("jax_enable_x64", True)
@@ -35,10 +37,37 @@ def matmul_bat_einsum(
   return jnp.sum(i8_products.astype(jnp.uint64) << shift_factors, axis=(-1,))
 
 
+@overload
+def basis_aligned_transformation(
+    matrix: np.ndarray, moduli: list[int]
+) -> np.ndarray:
+  ...
+
+
+@overload
 def basis_aligned_transformation(
     matrix: jnp.ndarray, moduli: list[int]
 ) -> jnp.ndarray:
+  ...
+
+
+def basis_aligned_transformation(
+    matrix: jnp.ndarray | np.ndarray, moduli: list[int]
+) -> jnp.ndarray | np.ndarray:
   """Prepares a matrix for Basis Aligned Transformation (BAT)."""
+  if isinstance(matrix, np.ndarray):
+    matrix_u64 = matrix.astype(np.uint64)
+    num_bytes = 4
+    matrix_u64_byteshifted = np.array(
+        [matrix_u64 << (8 * byte_idx) for byte_idx in range(num_bytes)],
+        dtype=np.uint64,
+    )
+    moduli_arr = np.array(moduli, dtype=np.uint64)
+    matrix_u32 = (matrix_u64_byteshifted % moduli_arr).astype(np.uint32)
+    view_u8 = matrix_u32.view(np.uint8)
+    out_shape = matrix_u32.shape + (4,)
+    return view_u8.reshape(out_shape)
+
   matrix_u64 = matrix.astype(jnp.uint64)
   num_bytes = 4
   matrix_u64_byteshifted = jnp.array(
