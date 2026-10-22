@@ -1,10 +1,10 @@
 import os
+import tomllib
 
 import jax
 from jaxite.jaxite_ec import elliptic_curve_context as ec_context
 from jaxite.jaxite_ec import finite_field_context as ff_context
 from jaxite.jaxite_ec import utils
-import toml
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -27,7 +27,8 @@ TEST_PARAMS_POINT_DOUBLE = [
 
 
 def _build_ec_context():
-  ec_config = toml.load(CONFIG_PATH)
+  with open(CONFIG_PATH, "rb") as f:
+    ec_config = tomllib.load(f)
   rns_moduli = utils.find_moduli_specified_number(NUM_MODULI, 28)
   finite_field_parameters = {
       "prime": ec_config["ec_parameters_bls12_377_affine"]["prime"],

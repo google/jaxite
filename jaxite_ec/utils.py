@@ -4,6 +4,7 @@ import hashlib
 import math
 import os
 import pickle
+import tomllib
 from typing import Any, Callable, List, Optional
 import warnings
 import jax
@@ -11,7 +12,6 @@ from jax import export
 from jax import sharding as shd
 import jax.numpy as jnp
 import numpy as np
-import toml
 
 # =============================================================================
 # Load configurations
@@ -19,8 +19,8 @@ import toml
 _config_path = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "configurations.toml"
 )
-with open(_config_path, "r", encoding="utf-8") as _f:
-  _config = toml.load(_f)
+with open(_config_path, "rb") as _f:
+  _config = tomllib.load(_f)
 _serialized_jax_kernel_dir = _config.get(
     "serialized_jax_kernel_dir", "./deployments/"
 )
@@ -702,13 +702,11 @@ _HASH_BASE = len(_HASH_CHARS)  # 62
 @lru_cache(maxsize=1)
 def _get_hash_length() -> int:
   """Read hash_length from configurations.toml, defaulting to 16."""
-  import toml
-
   config_path = os.path.join(
       os.path.dirname(os.path.abspath(__file__)), "configurations.toml"
   )
-  with open(config_path, "r", encoding="utf-8") as f:
-    config = toml.load(f)
+  with open(config_path, "rb") as f:
+    config = tomllib.load(f)
   return int(config.get("hash_length", 16))
 
 

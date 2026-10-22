@@ -113,7 +113,6 @@ py_library(
         "@jaxite//jaxite_ec/c_kernels:build",
         "@jaxite_deps//numpy",
         # copybara: pandas
-        # copybara: toml
     ],
 )
 
@@ -204,7 +203,6 @@ tpu_test(
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",
-        # copybara: toml
     ],
 )
 
@@ -220,7 +218,6 @@ tpu_test(
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
         "@jaxite_deps//numpy",
-        # copybara: toml
     ],
 )
 

@@ -1,10 +1,10 @@
 import os
+import tomllib
 
 from jaxite.jaxite_ec import elliptic_curve_context as ec_context
 from jaxite.jaxite_ec import finite_field_context as ff_context
 from jaxite.jaxite_ec import utils
 import numpy as np
-import toml
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -44,9 +44,10 @@ class BLS12_377_Test(parameterized.TestCase):
 
   @parameterized.named_parameters(*BLS12_377_TEST_CASES)
   def test_ExtendedTwistedEdwards_point_add(self, point_batch_1, point_batch_2):
-    ec_config = toml.load(
-        os.path.join(os.path.dirname(__file__), "configurations.toml")
-    )
+    with open(
+        os.path.join(os.path.dirname(__file__), "configurations.toml"), "rb"
+    ) as f:
+      ec_config = tomllib.load(f)
     rns_moduli = utils.find_moduli_specified_number(32, 28)
     finite_field_parameters = {
         "prime": ec_config["ec_parameters_bls12_377_affine"]["prime"],
