@@ -143,14 +143,12 @@ class BasisConversionBarrett(BasisConversion):
       )
       self.precomputed_constants.append(constants)
 
-  @jax.jit(static_argnames="control_index")
   def basis_change(
       self, in_tower: jnp.ndarray, control_index: int = 0
   ) -> jnp.ndarray:
     """Performs the approximate basis change using BAT optimization."""
     constants = self.precomputed_constants[control_index]
     in_tower = jnp.asarray(in_tower, dtype=jnp.uint64)
-
     # Step 1: Compute c_unreduced = in_tower * QHatInvModq
     # Ensure constants.q_hat_inv_mod_q broadcasts over leading dimensions.
     # q_hat_inv_mod_q has shape (sizeQ,). in_tower has shape (..., sizeQ).

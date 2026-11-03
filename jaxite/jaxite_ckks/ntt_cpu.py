@@ -26,9 +26,9 @@ def _get_bit_reversal_perm(n):
   return _PERM_CACHE[n]
 
 
-def _get_powers(base, n, q):
+def _get_powers(base, n, q, dtype=object):
   """Returns an array of powers of base modulo q: [base^0, ..., base^{n-1}]."""
-  res = np.empty(n, dtype=object)
+  res = np.empty(n, dtype=dtype)
   curr = 1
   for i in range(n):
     res[i] = curr
@@ -36,28 +36,28 @@ def _get_powers(base, n, q):
   return res
 
 
-def ntt_negacyclic_bit_reverse(a, q, psi):
+def ntt_negacyclic_bit_reverse(a, q, psi, dtype=object):
   """Forward negacyclic NTT."""
   n = len(a)
-  powers_of_psi = _get_powers(psi, n, q)
-  a_twisted = (np.asarray(a, dtype=object) * powers_of_psi) % q
+  powers_of_psi = _get_powers(psi, n, q, dtype=dtype)
+  a_twisted = (np.asarray(a, dtype=dtype) * powers_of_psi) % q
   omega = pow(psi, 2, q)
-  return ntt_cyclic_bit_reverse(a_twisted, q, omega)
+  return ntt_cyclic_bit_reverse(a_twisted, q, omega, dtype=dtype)
 
 
-def intt_negacyclic_bit_reverse(a, q, psi):
+def intt_negacyclic_bit_reverse(a, q, psi, dtype=object):
   """Inverse negacyclic NTT."""
   n = len(a)
   omega = pow(psi, 2, q)
-  a_inv = intt_cyclic_bit_reverse(a, q, omega)
+  a_inv = intt_cyclic_bit_reverse(a, q, omega, dtype=dtype)
   psi_inv = pow(psi, -1, q)
-  powers_of_psi_inv = _get_powers(psi_inv, n, q)
+  powers_of_psi_inv = _get_powers(psi_inv, n, q, dtype=dtype)
   return (a_inv * powers_of_psi_inv) % q
 
 
-def ntt_cyclic_bit_reverse(a, q, omega):
+def ntt_cyclic_bit_reverse(a, q, omega, dtype=object):
   """Iterative forward NTT with bit-reversal."""
-  a = np.array(a, dtype=object)
+  a = np.array(a, dtype=dtype)
   n = len(a)
 
   # Bit-reversal (DIT)
@@ -68,7 +68,7 @@ def ntt_cyclic_bit_reverse(a, q, omega):
   while length <= n:
     w_m = pow(omega, n // length, q)
     half = length // 2
-    ws = _get_powers(w_m, half, q)
+    ws = _get_powers(w_m, half, q, dtype=dtype)
 
     a = a.reshape(-1, length)
     u = a[:, :half]
@@ -76,16 +76,16 @@ def ntt_cyclic_bit_reverse(a, q, omega):
 
     new_a = np.empty_like(a)
     new_a[:, :half] = (u + v) % q
-    new_a[:, half:] = (u - v) % q
+    new_a[:, half:] = (u + q - v) % q
     a = new_a.ravel()
 
     length *= 2
   return a
 
 
-def intt_cyclic_bit_reverse(a, q, omega):
+def intt_cyclic_bit_reverse(a, q, omega, dtype=object):
   """Iterative inverse NTT with bit-reversal."""
-  a = np.array(a, dtype=object)
+  a = np.array(a, dtype=dtype)
   n = len(a)
   inv_root = pow(omega, -1, q)
 
@@ -93,7 +93,7 @@ def intt_cyclic_bit_reverse(a, q, omega):
   while length >= 2:
     w_m = pow(inv_root, n // length, q)
     half = length // 2
-    ws = _get_powers(w_m, half, q)
+    ws = _get_powers(w_m, half, q, dtype=dtype)
 
     a = a.reshape(-1, length)
     u = a[:, :half]
@@ -101,7 +101,7 @@ def intt_cyclic_bit_reverse(a, q, omega):
 
     new_a = np.empty_like(a)
     new_a[:, :half] = (u + v) % q
-    new_a[:, half:] = ((u - v) * ws) % q
+    new_a[:, half:] = ((u + q - v) * ws) % q
     a = new_a.ravel()
 
     length //= 2
@@ -122,9 +122,10 @@ def ntt_negacyclic_poly(poly: np.ndarray, moduli: list[int]) -> np.ndarray:
   res = np.zeros((degree, num_moduli), dtype=np.uint64)
   perm = _get_bit_reversal_perm(degree)
   for i, q in enumerate(moduli):
+    dtype = np.uint64 if q < 2**30 else object
     psi = ckks_math.root_of_unity(2 * degree, q)
     coeffs = poly[:, i]
-    ntt_res = ntt_negacyclic_bit_reverse(coeffs, q, psi)
+    ntt_res = ntt_negacyclic_bit_reverse(coeffs, q, psi, dtype=dtype)
     res[:, i] = (ntt_res[perm] % q).astype(np.uint64)
   return res
 
@@ -136,9 +137,10 @@ def intt_negacyclic_poly(poly: np.ndarray, moduli: list[int]) -> np.ndarray:
   res = np.zeros((degree, num_moduli), dtype=np.uint64)
   perm = _get_bit_reversal_perm(degree)
   for i, q in enumerate(moduli):
+    dtype = np.uint64 if q < 2**30 else object
     psi = ckks_math.root_of_unity(2 * degree, q)
     coeffs = poly[:, i]
     coeffs_rev = coeffs[perm]
-    intt_res = intt_negacyclic_bit_reverse(coeffs_rev, q, psi)
+    intt_res = intt_negacyclic_bit_reverse(coeffs_rev, q, psi, dtype=dtype)
     res[:, i] = intt_res.astype(np.uint64)
   return res

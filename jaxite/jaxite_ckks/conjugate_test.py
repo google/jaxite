@@ -22,10 +22,11 @@ from absl.testing import parameterized
 class ConjugateTest(parameterized.TestCase):
 
   def _run_conjugate_test(
-      self, degree, num_slots, q_limbs, p_limbs, dnum, use_noise, mu=None
+      self, degree, num_slots, q_limbs, p_limbs, use_noise, mu=None
   ):
     all_moduli = q_limbs + p_limbs
     scale = 2**20
+    dnum = 1
 
     if use_noise:
       test_random_source = random.TestRandomSource(123)
@@ -41,6 +42,12 @@ class ConjugateTest(parameterized.TestCase):
         q_limbs=q_limbs,
         p_limbs=p_limbs,
         dnum=dnum,
+        random_source=test_random_source,
+    )
+    key1 = key_gen.gen_key1(
+        sk=sk_q,
+        q_limbs=q_limbs,
+        p_limbs=p_limbs,
         random_source=test_random_source,
     )
 
@@ -70,13 +77,13 @@ class ConjugateTest(parameterized.TestCase):
     conjugate_kernel.precompute_constants(
         q_limbs=q_limbs,
         p_limbs=p_limbs,
-        dnum=dnum,
         r=4,
         c=4,
         bc_kernel=bc_kernel,
         mul_kernel=mul_kernel,
         rescale_kernel=rescale_kernel,
         conj_key=conj_key,
+        key1=key1,
         start_control_index=0,
     )
 
@@ -114,50 +121,32 @@ class ConjugateTest(parameterized.TestCase):
       raise err
 
   @parameterized.named_parameters(
-      ("one_q_limb_one_p_limb_dnum_1", [1073184769], [1073479681], 1, False),
+      ("one_q_limb_one_p_limb_dnum_1", [1073184769], [1073479681], False),
       (
           "two_q_limbs_one_p_limb_dnum_1",
           [1073742113, 1073740609],
           [1073741953],
-          1,
-          False,
-      ),
-      (
-          "two_q_limbs_one_p_limb_dnum_2",
-          [1073742113, 1073740609],
-          [1073741953],
-          2,
           False,
       ),
       (
           "one_q_limb_two_p_limbs_dnum_1_with_noise",
           [1073184769],
           [1073479681, 1073741953],
-          1,
           True,
       ),
       (
           "two_q_limbs_three_p_limbs_dnum_1_with_noise",
           [1073742113, 1073740609],
           [1073741953, 1073741441, 1073741857],
-          1,
-          True,
-      ),
-      (
-          "two_q_limbs_three_p_limbs_dnum_2_with_noise",
-          [1073742113, 1073740609],
-          [1073741953, 1073741441, 1073741857],
-          2,
           True,
       ),
   )
-  def test_conjugate_pipeline(self, q_limbs, p_limbs, dnum, use_noise):
+  def test_conjugate_pipeline(self, q_limbs, p_limbs, use_noise):
     self._run_conjugate_test(
         degree=16,
         num_slots=8,
         q_limbs=q_limbs,
         p_limbs=p_limbs,
-        dnum=dnum,
         use_noise=use_noise,
     )
 
@@ -176,7 +165,6 @@ class ConjugateTest(parameterized.TestCase):
         num_slots=8,
         q_limbs=[1073184769],
         p_limbs=[1073479681, 1073741953],
-        dnum=1,
         use_noise=True,
         mu=np.array(slots, dtype=complex),
     )
@@ -203,6 +191,12 @@ class ConjugateTest(parameterized.TestCase):
         dnum=1,
         random_source=test_random_source,
     )
+    key1 = key_gen.gen_key1(
+        sk=sk_q,
+        q_limbs=q_limbs,
+        p_limbs=p_limbs,
+        random_source=test_random_source,
+    )
 
     bc_kernel = basis_conversion.BasisConversionBarrett()
     bc_kernel.precompute_constants(all_moduli, [([0], [1, 2])])
@@ -218,13 +212,13 @@ class ConjugateTest(parameterized.TestCase):
     conjugate_kernel.precompute_constants(
         q_limbs=q_limbs,
         p_limbs=p_limbs,
-        dnum=1,
         r=4,
         c=4,
         bc_kernel=bc_kernel,
         mul_kernel=mul_kernel,
         rescale_kernel=rescale_kernel,
         conj_key=conj_key,
+        key1=key1,
         start_control_index=0,
     )
 

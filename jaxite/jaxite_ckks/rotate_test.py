@@ -67,15 +67,18 @@ class RotateTest(parameterized.TestCase):
     rotate_kernel.precompute_constants(
         q_limbs=q_limbs,
         p_limbs=p_limbs,
-        dnum=1,
         r=32,
         c=degree // 32,
         num_rescales=1,
     )
+    key1 = key_gen.gen_key1(
+        sk, q_limbs, p_limbs, random_source=test_random_source
+    )
+    rot_key_bat = rotate_kernel.key_switcher.transform_key_to_bat(rot_key, key1)
 
     ct_rot = rotate_kernel.rotate(
         ct=ct,
-        rot_key=rot_key,
+        rot_key_bat=rot_key_bat,
         j=shift,
     )
 
@@ -141,23 +144,31 @@ class RotateTest(parameterized.TestCase):
     rotate_kernel.precompute_constants(
         q_limbs=q_limbs,
         p_limbs=p_limbs,
-        dnum=1,
         r=32,
         c=degree // 32,
         num_rescales=1,
+    )
+    key1 = key_gen.gen_key1(
+        sk, q_limbs, p_limbs, random_source=test_random_source
+    )
+    rot_key_j_bat = rotate_kernel.key_switcher.transform_key_to_bat(
+        rot_key_j, key1
+    )
+    rot_key_n_minus_j_bat = rotate_kernel.key_switcher.transform_key_to_bat(
+        rot_key_n_minus_j, key1
     )
 
     # Rotate by j
     ct_rot1 = rotate_kernel.rotate(
         ct=ct,
-        rot_key=rot_key_j,
+        rot_key_bat=rot_key_j_bat,
         j=shift,
     )
 
     # Rotate by n - j
     ct_rot2 = rotate_kernel.rotate(
         ct=ct_rot1,
-        rot_key=rot_key_n_minus_j,
+        rot_key_bat=rot_key_n_minus_j_bat,
         j=n - shift,
     )
 

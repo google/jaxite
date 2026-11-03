@@ -14,7 +14,9 @@
 
 """Blind rotation implementations for CKKS."""
 
+import functools
 import math
+
 import jax
 import jax.numpy as jnp
 from jaxite.jaxite_ckks import barrett
@@ -32,27 +34,32 @@ import numpy as np
 class BlindRotation:
   """Kernel for homomorphic blind rotation on TPU."""
 
-  key_switcher: key_switching.KeySwitcher = key_switching.KeySwitcher()
-  bc_kernel: basis_conversion.BasisConversionBarrett = (
-      basis_conversion.BasisConversionBarrett()
-  )
-  mul_kernel: mul.MulPlaintextCiphertextBarrett = (
-      mul.MulPlaintextCiphertextBarrett()
-  )
-  rescale_kernel: rescale.Rescale = rescale.Rescale()
-  ntt_q: ntt.NTTBarrett = ntt.NTTBarrett()
-  ntt_p: ntt.NTTBarrett = ntt.NTTBarrett()
+  def __init__(self):
+    self.bat_switcher: key_switching.BATKeySwitcher = (
+        key_switching.BATKeySwitcher()
+    )
+    self.bc_kernel: basis_conversion.BasisConversionBarrett = (
+        basis_conversion.BasisConversionBarrett()
+    )
+    self.mul_kernel: mul.MulPlaintextCiphertextBarrett = (
+        mul.MulPlaintextCiphertextBarrett()
+    )
+    self.rescale_kernel: rescale.Rescale = rescale.Rescale()
+    self.ntt_q: ntt.NTTBarrett = ntt.NTTBarrett()
+    self.ntt_p: ntt.NTTBarrett = ntt.NTTBarrett()
 
-  q_limbs: jax.Array = np.empty((0,), dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
-  p_limbs: jax.Array = np.empty((0,), dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
-  all_moduli: jax.Array = np.empty((0,), dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
-  q_limbs_u64_expanded: jax.Array = np.empty((1, 1, 0), dtype=np.uint64)  # pyrefly: ignore[bad-assignment]
-  all_moduli_u64_expanded: jax.Array = np.empty((1, 1, 0), dtype=np.uint64)  # pyrefly: ignore[bad-assignment]
+    self.q_limbs: jax.Array = np.empty((0,), dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
+    self.p_limbs: jax.Array = np.empty((0,), dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
+    self.all_moduli: jax.Array = np.empty((0,), dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
+    self.q_limbs_u64_expanded: jax.Array = np.empty((1, 1, 0), dtype=np.uint64)  # pyrefly: ignore[bad-assignment]
+    self.all_moduli_u64_expanded: jax.Array = np.empty(  # pyrefly: ignore[bad-assignment]
+        (1, 1, 0), dtype=np.uint64
+    )
 
   def tree_flatten(self):
     """Flattens the BlindRotation object for JAX PyTree serialization."""
     children = (
-        self.key_switcher,
+        self.bat_switcher,
         self.bc_kernel,
         self.mul_kernel,
         self.rescale_kernel,
@@ -72,7 +79,7 @@ class BlindRotation:
     """Unflattens the BlindRotation object for JAX PyTree serialization."""
     del aux_data
     obj = cls()
-    obj.key_switcher = children[0]
+    obj.bat_switcher = children[0]
     obj.bc_kernel = children[1]
     obj.mul_kernel = children[2]
     obj.rescale_kernel = children[3]
@@ -136,157 +143,90 @@ class BlindRotation:
         all_moduli, num_rescales=num_rescales, r=r, c=c
     )
 
-    # 5. Precompute KeySwitcher constants
-    self.key_switcher = key_switching.KeySwitcher()
-    self.key_switcher.precompute_constants(
+    # Precompute BATKeySwitcher constants
+    self.bat_switcher = key_switching.BATKeySwitcher()
+    self.bat_switcher.precompute_constants(
         q_limbs,
         p_limbs,
-        dnum,
         r,
         c,
         bc_kernel=self.bc_kernel,
         mul_kernel=self.mul_kernel,
+        rescale_kernel=self.rescale_kernel,
     )
 
-  def hmuxrot(
-      self,
-      ct: types.Ciphertext,
-      hmrkey: types.HMuxRotKey,
-      automorphism_indices: jax.Array,
-      control_index: int = 0,
-  ) -> types.Ciphertext:
-    """Evaluates HMuxRot^(j)(hmrkey_beta, ct) using precomputed indices (Algorithm 5 of SHIP paper)."""
-    alpha_rot = blind_rotate_utils.apply_automorphism_ntt_with_indices(
-        ct.data[1], automorphism_indices
-    )
-    beta_rot = blind_rotate_utils.apply_automorphism_ntt_with_indices(
-        ct.data[0], automorphism_indices
-    )
-
-    # Format inputs for KeySwitcher: standard key switching switches the c1
-    # component, so we place alpha_rot/beta_rot in the c1 slot.
-    zeros = jnp.zeros_like(alpha_rot)
-    ct_stacked_data = jnp.stack(
-        [jnp.stack([zeros, alpha_rot]), jnp.stack([zeros, beta_rot])]
-    )
-    ct_stacked_moduli = jnp.stack([ct.moduli, ct.moduli])
-    ct_stacked = types.Ciphertext(
-        data=ct_stacked_data, moduli=ct_stacked_moduli
-    )
-
-    # Wrap HMuxRotKey parts in EvaluationKeys compatible with KeySwitcher.
-    # hmrkey.key0.data has shape (2, degree, num_QP)
-    # hmrkey.key0.data[1:2] has shape (1, degree, num_QP)
-    stacked_a = jnp.stack([hmrkey.key0.data[1:2], hmrkey.key1.data[1:2]])
-    stacked_b = jnp.stack([hmrkey.key0.data[0:1], hmrkey.key1.data[0:1]])
-    ksk_stacked_moduli = jnp.stack([hmrkey.key0.moduli, hmrkey.key1.moduli])
-    ksk_stacked = types.EvaluationKeys(
-        a=stacked_a,
-        b=stacked_b,
-        moduli=ksk_stacked_moduli,
-    )
-
-    vmapped_key_switch = jax.vmap(
-        lambda ct_i, ksk_i: self.key_switcher.key_switch(
-            ct=ct_i,
-            ksk=ksk_i,
-            start_control_index=control_index,
-        ),
-        in_axes=(0, 0),
-    )
-    ct_prods = vmapped_key_switch(ct_stacked, ksk_stacked)
-
-    sum_data = ct_prods.data[0].astype(jnp.uint64) + ct_prods.data[1].astype(
-        jnp.uint64
-    )
-    sum_reduced = sum_data % self.all_moduli_u64_expanded
-
-    ct_sum = types.Ciphertext(
-        data=sum_reduced.astype(jnp.uint32), moduli=self.all_moduli
-    )
-
-    self.rescale_kernel.rescale(ct_sum)
-    return ct_sum
-
+  @functools.partial(jax.jit, static_argnums=(0, 4))
   def brot_mux(
       self,
       ct_in: types.Ciphertext,
-      mux_key: types.MuxRotationKey,
+      mux_key_bat: list[tuple[jax.Array, jax.Array]],
+      permutations: list[jax.Array],
       control_index: int = 0,
   ) -> types.Ciphertext:
-    """Homomorphic Blind Rotation using the Mux Method (BRotMux).
+    """Homomorphic Blind Rotation using Mux Method with BAT."""
+    q_limbs_list = ct_in.moduli
+    q_limbs_array = jnp.array(q_limbs_list, dtype=jnp.uint32)
+    num_moduli = q_limbs_array.shape[0]
 
-    Sequentially applies the MUX-based conditional rotation for each bit of the
-    rotation index j.
-    Computes: Rot_j(mu) mod Q, where mu is the cleartext of ct_in, and j is the
-    secret rotation index represented by the bits of mux_key.
-    Reference: https://eprint.iacr.org/2025/784 Algorithm 3
+    if num_moduli == 1:
+      q_for_reduction = q_limbs_array[0]
+      ct_current_data = jnp.squeeze(ct_in.data, axis=-1)
 
-    Args:
-      ct_in: The input ciphertext under Q.
-      mux_key: The MuxRotationKey containing the keys for each bit.
-      control_index: The control index for basis conversion Q -> P.
+      def _ks_helper_single_mod(ct_data_squeezed, key):
+        ct_temp = types.Ciphertext(
+            data=jnp.expand_dims(ct_data_squeezed, axis=-1), moduli=q_limbs_list
+        )
+        res_data_expanded = self.bat_switcher.key_switch(
+            ct=ct_temp,
+            key_matrix_bat=key,
+            control_index=control_index,
+        ).data
+        return jnp.squeeze(res_data_expanded, axis=-1)
 
-    Returns:
-      A Ciphertext under Q representing the rotated ciphertext.
-    """
-    degree = ct_in.data.shape[1]
-    identity_indices = jnp.arange(degree, dtype=jnp.uint32)
+      vmapped_ks = jax.vmap(_ks_helper_single_mod, in_axes=(0, 0))
 
-    keys_jk_0 = [pair[0] for pair in mux_key.keys]
-    keys_not_jk_1 = [pair[1] for pair in mux_key.keys]
+    else:
+      q_for_reduction = q_limbs_array.reshape(1, 1, -1)
+      ct_current_data = ct_in.data
 
-    stacked_keys_jk_0 = jax.tree.map(lambda *args: jnp.stack(args), *keys_jk_0)
-    stacked_keys_not_jk_1 = jax.tree.map(
-        lambda *args: jnp.stack(args), *keys_not_jk_1
-    )
-    stacked_permutations = jnp.stack(mux_key.permutations)
+      def _ks_helper_multi_mod(ct_data_full, key):
+        ct_temp = types.Ciphertext(data=ct_data_full, moduli=q_limbs_list)
+        return self.bat_switcher.key_switch(
+            ct=ct_temp,
+            key_matrix_bat=key,
+            control_index=control_index,
+        ).data
 
-    def scan_body(ct_out, x):
-      hmrkey_jk_0, hmrkey_not_jk_1, perm_jk_0 = x
+      vmapped_ks = jax.vmap(_ks_helper_multi_mod, in_axes=(0, 0))
 
-      # Stack keys and permutations
-      stacked_hmrkeys = jax.tree.map(
-          lambda k0, k1: jnp.stack([k0, k1]), hmrkey_jk_0, hmrkey_not_jk_1
-      )
-      stacked_perms = jnp.stack([perm_jk_0, identity_indices])
+    stacked_bat_key_jk_0 = jnp.stack([pair[0] for pair in mux_key_bat])
+    stacked_bat_key_not_jk_1 = jnp.stack([pair[1] for pair in mux_key_bat])
+    stacked_permutations = jnp.stack(permutations)
 
-      # Algorithm 3, Steps 3-4: ct0 <- HMuxRot(hmrkey_jk_0, ct_out) and
-      # ct1 <- HMuxRot(hmrkey_not_jk_1, ct_out).
-      # Evaluated in parallel using jax.vmap.
-      vmapped_hmuxrot = jax.vmap(
-          lambda hmrkey_i, perm_i: self.hmuxrot(
-              ct=ct_out,
-              hmrkey=hmrkey_i,
-              automorphism_indices=perm_i,
-              control_index=control_index,
-          ),
-          in_axes=(0, 0),
-      )
+    num_iterations = len(mux_key_bat)
 
-      cts = vmapped_hmuxrot(stacked_hmrkeys, stacked_perms)
+    for i in range(num_iterations):
+      bat_key0_slice = stacked_bat_key_jk_0[i]
+      bat_key1_slice = stacked_bat_key_not_jk_1[i]
+      perm_jk_0_slice = stacked_permutations[i]
 
-      # Algorithm 3, Step 5: ct_out <- ct0 + ct1
-      sum_data = cts.data[0].astype(jnp.uint64) + cts.data[1].astype(jnp.uint64)
-      sum_reduced = jnp.where(
-          sum_data >= self.q_limbs_u64_expanded,
-          sum_data - self.q_limbs_u64_expanded,
-          sum_data,
-      )
-      new_ct_out = types.Ciphertext(
-          data=sum_reduced.astype(jnp.uint32), moduli=ct_out.moduli
-      )
-      return new_ct_out, None
+      rotated_data = jnp.take(ct_current_data, perm_jk_0_slice, axis=1)
 
-    scan_inputs = (
-        stacked_keys_jk_0,
-        stacked_keys_not_jk_1,
-        stacked_permutations,
-    )
-    # Algorithm 3, Step 2: Loop over the bits of the rotation index
-    # (using jax.lax.scan)
-    ct_final, _ = jax.lax.scan(scan_body, ct_in, scan_inputs)
-    return ct_final
+      stacked_input = jnp.stack([rotated_data, ct_current_data], axis=0)
+      bat_keys_iter = jnp.stack([bat_key0_slice, bat_key1_slice], axis=0)
+      cts_out_data = vmapped_ks(stacked_input, bat_keys_iter)
+
+      sum_data = jnp.sum(cts_out_data.astype(jnp.uint64), axis=0)
+      ct_current_data = jnp.where(
+          sum_data >= q_for_reduction, sum_data - q_for_reduction, sum_data
+      ).astype(jnp.uint32)
+
+    if num_moduli == 1:
+      final_data = jnp.expand_dims(ct_current_data, axis=-1)
+    else:
+      final_data = ct_current_data
+
+    return types.Ciphertext(data=final_data, moduli=q_limbs_list)
 
   def brot_cm(
       self,
@@ -332,101 +272,78 @@ class BlindRotation:
     )
 
     # Algorithm 2, Step 7: return Rescale_P(ct)
-    self.rescale_kernel.rescale(ct_out)
-    return ct_out
+    return self.rescale_kernel.rescale(ct_out)
 
+  @functools.partial(jax.jit, static_argnums=(0, 5, 6))
   def brot_hybrid(
       self,
       pts: list[types.Plaintext] | tuple[types.Plaintext, ...],
       cmkey_hybrid: list[list[types.Ciphertext]],
-      mmkey_hybrid: types.MuxRotationKey,
+      mmkey_hybrid_bat: list[tuple[jax.Array, jax.Array]],
+      permutations: list[jax.Array],
       theta: int,
       control_index: int = 0,
   ) -> types.Ciphertext:
-    """Homomorphic Blind Rotation using the Hybrid Method (BRotHybrid)."""
-    if len(pts) != 4:
-      raise ValueError("pts must contain exactly 4 Plaintexts.")
-    if len(cmkey_hybrid) != 4:
-      raise ValueError(
-          "cmkey_hybrid must contain exactly 4 lists of Ciphertexts."
+    """Homomorphic Blind Rotation using Hybrid Method with BAT."""
+    degree = pts[0].data.shape[0]
+    gs = jnp.array(
+        [pow(5, -j0, 2 * degree) for j0 in range(theta)], dtype=jnp.uint32
+    )
+
+    stacked_cmkey_data = jnp.stack([
+        jnp.stack([ct.data for ct in inner_list]) for inner_list in cmkey_hybrid
+    ])
+
+    num_moduli = pts[0].data.shape[-1]
+    total_terms = len(pts) * theta
+
+    if total_terms <= 16:
+      summed_data = jnp.zeros((2, degree, num_moduli), dtype=jnp.uint64)
+      for k, pt in enumerate(pts):
+        pt_data_u64 = pt.data.astype(jnp.uint64)
+        for t in range(theta):
+          pt_rot = blind_rotate_utils.apply_automorphism_ntt(pt_data_u64, gs[t])  # pyrefly: ignore[bad-argument-type]
+          summed_data += (
+              stacked_cmkey_data[k, t].astype(jnp.uint64)
+              * pt_rot[jnp.newaxis, :, :]
+          )
+      reduced_data = barrett.modular_reduction(
+          summed_data, self.mul_kernel.barrett_constants
+      )
+    else:
+      summed_data = jnp.zeros((2, degree, num_moduli), dtype=jnp.uint64)
+      for k, pt in enumerate(pts):
+        pt_data_u64 = pt.data.astype(jnp.uint64)
+        inner_reduced_sum = jnp.zeros((2, degree, num_moduli), dtype=jnp.uint64)
+        for t_chunk in range(0, theta, 16):
+          chunk_sum = jnp.zeros((2, degree, num_moduli), dtype=jnp.uint64)
+          for t in range(t_chunk, min(t_chunk + 16, theta)):
+            pt_rot = blind_rotate_utils.apply_automorphism_ntt(
+                pt_data_u64, gs[t]  # pyrefly: ignore[bad-argument-type]
+            )
+            chunk_sum += (
+                stacked_cmkey_data[k, t].astype(jnp.uint64)
+                * pt_rot[jnp.newaxis, :, :]
+            )
+          chunk_reduced = barrett.modular_reduction(
+              chunk_sum, self.mul_kernel.barrett_constants
+          )
+          inner_reduced_sum += chunk_reduced.astype(jnp.uint64)
+        summed_data += inner_reduced_sum
+
+      reduced_data = barrett.modular_reduction(
+          summed_data, self.mul_kernel.barrett_constants
       )
 
-    degree = pts[0].data.shape[0]
-
-    # Algorithm 4, Step 1: ct <- (0, 0) (accumulated in parallel below)
-    # Stack inputs
-    # pts_data: shape (4, degree, num_moduli)
-    pts_data = jnp.stack([pt.data for pt in pts])
-    # cmkey_data: shape (4, theta, 2, degree, num_moduli)
-    cmkey_data = jnp.stack(
-        [jnp.stack([ct.data for ct in cmkeys]) for cmkeys in cmkey_hybrid]
-    )
-
-    # Note: Swapped baby/giant step layout (Approach B, Section 5.4 of
-    # paper).
-    # Algorithm 4, Step 3 (swapped): for j0 (baby step) from 0 to
-    # theta - 1 do
-    # Compute automorphisms for all k in parallel
-    gs = jnp.array(
-        [int(pow(5, -j0, 2 * degree)) for j0 in range(theta)],
-        dtype=jnp.uint32,
-    )
-
-    # pt_rot_all_k: shape (4, theta, degree, num_moduli)
-    # pt_rot_all_k: pt_k(X^{5^{-j0}}) for all k and j0
-    def get_pt_rot(pt_data):
-      return jax.vmap(
-          blind_rotate_utils.apply_automorphism_ntt, in_axes=(None, 0)
-      )(pt_data, gs)  # pyrefly: ignore[bad-argument-type]
-
-    pt_rot_all_k = jax.vmap(get_pt_rot)(pts_data)
-    # pt_rot_all_k_expanded: shape (4, theta, 1, degree, num_moduli)
-    pt_rot_all_k_expanded = jnp.expand_dims(pt_rot_all_k, axis=2)
-
-    # Algorithm 4, Step 4 (swapped): Multiply pt_k(X^{5^{-j0}}) * CM_key_j0
-    # We perform this multiplication for all k and j0 in parallel
-    # (without intermediate reduction).
-    # prod: shape (4, theta, 2, degree, num_moduli) in uint64
-    prod = cmkey_data.astype(jnp.uint64) * pt_rot_all_k_expanded.astype(
-        jnp.uint64
-    )
-
-    # Sum over theta (baby steps) for each k
-    # sum_theta: shape (4, 2, degree, num_moduli)
-    sum_theta = jnp.sum(prod, axis=1)
-
-    # Perform modular reduction on the accumulated sum for each k
-    # reduced_theta: shape (4, 2, degree, num_moduli) in uint32
-    reduced_theta = barrett.modular_reduction(
-        sum_theta, self.mul_kernel.barrett_constants
-    )
-
-    # Algorithm 4, Step 5: Sum over k
-    # summed_data: shape (2, degree, num_moduli) in uint64
-    summed_data = jnp.sum(reduced_theta.astype(jnp.uint64), axis=0)
-
-    # Final modular reduction to get ct_giant
-    reduced_data = barrett.modular_reduction(
-        summed_data, self.mul_kernel.barrett_constants
-    )
-
     ct_giant = types.Ciphertext(
-        data=reduced_data.astype(jnp.uint32),
-        moduli=self.all_moduli,
+        data=reduced_data.astype(jnp.uint32), moduli=self.all_moduli
     )
 
-    # Algorithm 4, Step 7: ct <- Rescale_P(ct)
-    # Rescale by P to go back to modulus Q
-    self.rescale_kernel.rescale(ct_giant)
+    ct_giant = self.rescale_kernel.rescale(ct_giant)
 
-    # Note: Swapped baby/giant step layout (Approach B, Section 5.4 of
-    # paper).
-    # Algorithm 4, Step 8 (swapped): return BRotMux(mmkey, ct) for giant
-    # steps index j1 * theta, using stride = theta.
-    # Run Mux Method conditional rotations on the giant-step output,
-    # with stride=theta.
     return self.brot_mux(
         ct_in=ct_giant,
-        mux_key=mmkey_hybrid,
+        mux_key_bat=mmkey_hybrid_bat,
+        permutations=permutations,
         control_index=control_index,
     )

@@ -171,6 +171,45 @@ def gen_key_switching_key(
   )
 
 
+def gen_key1(
+    sk: types.SecretKey,
+    q_limbs: list[int],
+    p_limbs: list[int],
+    random_source: random.RandomSource | None = None,
+) -> types.Ciphertext:
+  """Generates key1 (encryption of P) for BAT key switching."""
+  random_source = random_source or random.SecureRandomSource()
+  degree = sk.data.shape[0]
+  all_moduli = q_limbs + p_limbs
+  sk_ext = extend_secret_key(sk, all_moduli)
+
+  p_val = math.prod(p_limbs)
+  scaled_val = np.array(
+      [p_val % m for m in all_moduli], dtype=np.uint64
+  ).reshape(1, -1)
+  target1 = np.ones((degree, len(all_moduli)), dtype=np.uint64) * scaled_val
+
+  a_coeffs = random_source.gen_uniform_poly(degree, all_moduli)
+  e_coeffs = random_source.gen_gaussian_poly(degree, all_moduli)
+  a_slots = ntt_cpu.ntt_negacyclic_poly(a_coeffs, all_moduli)
+  e_slots = ntt_cpu.ntt_negacyclic_poly(e_coeffs, all_moduli)
+
+  prod = (a_slots * sk_ext.data) % np.array(
+      all_moduli, dtype=np.uint64
+  ).reshape(1, -1)
+  b_slots = (
+      e_slots
+      + target1
+      + np.array(all_moduli, dtype=np.uint64).reshape(1, -1)
+      - prod
+  ) % np.array(all_moduli, dtype=np.uint64).reshape(1, -1)
+
+  key1_data = np.stack([b_slots, a_slots])
+  return types.Ciphertext(
+      data=jnp.array(key1_data), moduli=jnp.array(all_moduli, dtype=jnp.uint64)
+  )
+
+
 def gen_evaluation_key(
     secret_key: SecretKey,
     q_towers: list[int],

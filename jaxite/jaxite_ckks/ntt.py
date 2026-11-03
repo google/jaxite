@@ -9,6 +9,7 @@ import jax.numpy as jnp
 from jaxite.jaxite_ckks import barrett
 from jaxite.jaxite_ckks import bat_utils
 from jaxite.jaxite_ckks import math as ckks_math
+import numpy as np
 
 # Enable 64-bit precision for large integer arithmetic
 jax.config.update("jax_enable_x64", True)
@@ -131,6 +132,7 @@ class NTTBarrett(NTTBase):
       r: int,
       c: int,
   ):
+    print("      [ntt] Starting precompute_constants...", flush=True)
     moduli = list(moduli)
     transform_length = r * c
 
@@ -144,7 +146,9 @@ class NTTBarrett(NTTBase):
 
     # NTT Precompute
     ntt_tf_step1_list, ntt_tf_step2_list, ntt_tf_step3_list = [], [], []
+    print("      [ntt] Starting NTT loop over moduli...", flush=True)
     for i, modulus in enumerate(moduli):
+      print(f"      [ntt]   NTT Modulus {i} ({modulus})...", flush=True)
       omega = omega_list[i]
       omega_col = pow(omega, c, modulus)
       omega_row = pow(omega, r, modulus)
@@ -173,13 +177,16 @@ class NTTBarrett(NTTBase):
       ntt_tf_step2_list.append(tf2)
       ntt_tf_step3_list.append(tf3)
 
-    ntt_tf_step1 = jnp.array(ntt_tf_step1_list).transpose(1, 2, 0)
-    ntt_tf_step2 = jnp.array(ntt_tf_step2_list).transpose(1, 2, 0)
-    ntt_tf_step3 = jnp.array(ntt_tf_step3_list).transpose(1, 2, 0)
+    print("      [ntt] Combining NTT matrices as numpy arrays...", flush=True)
+    ntt_tf_step1_np = np.array(ntt_tf_step1_list).transpose(1, 2, 0)
+    ntt_tf_step2_np = np.array(ntt_tf_step2_list).transpose(1, 2, 0)
+    ntt_tf_step3_np = np.array(ntt_tf_step3_list).transpose(1, 2, 0)
 
     # INTT Precompute
     intt_tf_step1_list, intt_tf_step2_list, intt_tf_step3_list = [], [], []
+    print("      [ntt] Starting INTT loop over moduli...", flush=True)
     for i, modulus in enumerate(moduli):
+      print(f"      [ntt]   INTT Modulus {i} ({modulus})...", flush=True)
       omega = omega_list[i]
       omega_col = pow(omega, c, modulus)
       omega_row = pow(omega, r, modulus)
@@ -216,25 +223,24 @@ class NTTBarrett(NTTBase):
       intt_tf_step2_list.append(itf2)
       intt_tf_step3_list.append(itf3)
 
-    intt_tf_step1 = jnp.array(intt_tf_step1_list).transpose(1, 2, 0)
-    intt_tf_step2 = jnp.array(intt_tf_step2_list).transpose(1, 2, 0)
-    intt_tf_step3 = jnp.array(intt_tf_step3_list).transpose(1, 2, 0)
+    print("      [ntt] Combining INTT matrices as numpy arrays...", flush=True)
+    intt_tf_step1_np = np.array(intt_tf_step1_list).transpose(1, 2, 0)
+    intt_tf_step2_np = np.array(intt_tf_step2_list).transpose(1, 2, 0)
+    intt_tf_step3_np = np.array(intt_tf_step3_list).transpose(1, 2, 0)
+    print("      [ntt] Creating NTTBarrettConstants...", flush=True)
 
-    def to_bat(tf, moduli):
-      # tf: (R, R, M)
-      raw_bat = bat_utils.basis_aligned_transformation(tf, moduli)
-      # raw_bat shape: (4_byte_shift, rows, cols, moduli, 4_u8_bytes)
-      # We want (rows, 4_byte_shift, cols, 4_u8_bytes, moduli)
-      # matching subscripts q=shift, p=u8
-      return raw_bat.transpose(1, 0, 2, 4, 3)
+    def to_bat(tf_np, moduli):
+      raw_bat_np = bat_utils.basis_aligned_transformation(tf_np, moduli)
+      transposed_np = raw_bat_np.transpose(1, 0, 2, 4, 3)
+      return jnp.array(transposed_np)
 
     self.constants = NTTBarrettConstants(
-        ntt_bat_tf_step1=to_bat(ntt_tf_step1, moduli),
-        ntt_tf_step2=ntt_tf_step2.astype(jnp.uint64),
-        ntt_bat_tf_step3=to_bat(ntt_tf_step3, moduli),
-        intt_bat_tf_step1=to_bat(intt_tf_step1, moduli),
-        intt_tf_step2=intt_tf_step2.astype(jnp.uint64),
-        intt_bat_tf_step3=to_bat(intt_tf_step3, moduli),
+        ntt_bat_tf_step1=to_bat(ntt_tf_step1_np, moduli),
+        ntt_tf_step2=jnp.array(ntt_tf_step2_np, dtype=jnp.uint64),
+        ntt_bat_tf_step3=to_bat(ntt_tf_step3_np, moduli),
+        intt_bat_tf_step1=to_bat(intt_tf_step1_np, moduli),
+        intt_tf_step2=jnp.array(intt_tf_step2_np, dtype=jnp.uint64),
+        intt_bat_tf_step3=to_bat(intt_tf_step3_np, moduli),
         barrett_constants=barrett.precompute_barrett_constants(moduli),
         r=r,
         c=c,

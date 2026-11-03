@@ -29,7 +29,7 @@ class Rotate:
   """Kernel for homomorphic ciphertext rotation on TPU."""
 
   def __init__(self):
-    self.key_switcher = key_switching.KeySwitcher()
+    self.key_switcher = key_switching.BATKeySwitcher()
     self.bc_kernel = basis_conversion.BasisConversionBarrett()
     self.mul_kernel = mul.MulPlaintextCiphertextBarrett()
     self.rescale_kernel = rescale.Rescale()
@@ -58,13 +58,13 @@ class Rotate:
       self,
       q_limbs: list[int],
       p_limbs: list[int],
-      dnum: int,
       r: int,
       c: int,
       num_rescales: int = 1,
   ):
     """Precomputes constants and sub-kernels for rotation."""
     all_moduli = q_limbs + p_limbs
+    dnum = 1
 
     # 1. Precompute BasisConversion constants
     limbs_per_part = math.ceil(len(q_limbs) / dnum)
@@ -86,20 +86,21 @@ class Rotate:
     )
 
     # 4. Precompute KeySwitcher constants
+    self.key_switcher = key_switching.BATKeySwitcher()
     self.key_switcher.precompute_constants(
         q_limbs,
         p_limbs,
-        dnum,
         r,
         c,
         bc_kernel=self.bc_kernel,
         mul_kernel=self.mul_kernel,
+        rescale_kernel=self.rescale_kernel,
     )
 
   def rotate(
       self,
       ct: types.Ciphertext,
-      rot_key: types.EvaluationKeys,
+      rot_key_bat: jax.Array,
       j: int,
       control_index: int = 0,
   ) -> types.Ciphertext:
@@ -107,7 +108,7 @@ class Rotate:
 
     Args:
       ct: The input ciphertext (c0, c1) under Q.
-      rot_key: The key switching key from s(X^g) to s(X).
+      rot_key_bat: The BAT key matrix for key switching.
       j: The rotation amount (number of slots).
       control_index: The control index for basis conversion Q -> P.
 
@@ -121,14 +122,11 @@ class Rotate:
     ct_rot_data = blind_rotate_utils.apply_automorphism_ntt(ct.data, g)
     ct_rot = types.Ciphertext(data=ct_rot_data, moduli=ct.moduli)
 
-    # Step 2: Key Switch: convert ct_rot from Q to P under original key s(X)
+    # Step 2: Key Switch: convert ct_rot from Q to P under original key s(X) (also rescales)
     ct_switched = self.key_switcher.key_switch(
         ct=ct_rot,
-        ksk=rot_key,
-        start_control_index=control_index,
+        key_matrix_bat=rot_key_bat,
+        control_index=control_index,
     )
-
-    # Step 3: Rescale by P to drop auxiliary modulus and divide by P
-    self.rescale_kernel.rescale(ct_switched)
 
     return ct_switched

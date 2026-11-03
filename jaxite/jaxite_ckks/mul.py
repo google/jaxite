@@ -1,8 +1,10 @@
 """Multiplication and Relinearization kernels for CKKS."""
 
 import abc
+import dataclasses
 from typing import Callable, Iterable, Optional
 import jax
+import jax.core
 import jax.numpy as jnp
 from jaxite.jaxite_ckks import barrett
 from jaxite.jaxite_ckks import basis_conversion
@@ -34,9 +36,13 @@ class MulPlaintextCiphertextSimple(MulPlaintextCiphertextBase):
     pass
 
   def mul(self, ct: types.Ciphertext, pt: types.Plaintext) -> types.Ciphertext:
-
-    # Broadcast pt.data to match ct.data shape
-    # (num_elements, degree, num_moduli)
+    if (
+        not isinstance(ct.moduli, jax.core.Tracer)
+        and not isinstance(pt.moduli, jax.core.Tracer)
+        and ct.moduli.tolist() != pt.moduli.tolist()
+    ):
+      raise ValueError("Moduli of ciphertext and plaintext must match.")
+    # Broadcast pt.data to match ct.data (num_elements, degree, num_moduli)
     # pt.data has shape (degree, num_moduli)
     return types.Ciphertext(data=ct.data * pt.data, moduli=ct.moduli)
 
@@ -44,13 +50,26 @@ class MulPlaintextCiphertextSimple(MulPlaintextCiphertextBase):
     return (), None
 
   @classmethod
-  def tree_unflatten(cls, unused_aux, unused_children):
+  def tree_unflatten(cls, _, unused_children):
     return cls()
 
 
 @jax.tree_util.register_pytree_node_class
 class MulPlaintextCiphertextBarrett(MulPlaintextCiphertextBase):
-  """Plaintext-ciphertext multiplication using Barrett reduction on VPU."""
+  """Kernel for plaintext-ciphertext multiplication using Barrett reduction.
+
+  Note: This kernel will execute on the VPU by doing (barrett_reduce(ct * pt)).
+  During the blind rotation (bsk) multiplication with the plaintext, we want the
+  VPU executed version.
+  CROSS also implements an offline BAT on the plaintexts to utilize the MXU to
+  perform a pt-ct multiplication, but using this depends on the context.
+
+  Constraints on inputs:
+  1. ct.data and pt.data must contain non-negative integers.
+  2. For each corresponding element, the product must be strictly less
+     than m^2, where m is the corresponding modulus.
+  3. The moduli must be less than 2^31.
+  """
 
   barrett_constants: barrett.BarrettConstants = barrett.BarrettConstants()
 
@@ -60,14 +79,18 @@ class MulPlaintextCiphertextBarrett(MulPlaintextCiphertextBase):
   def mul(self, ct: types.Ciphertext, pt: types.Plaintext) -> types.Ciphertext:
     if self.barrett_constants is None:
       raise ValueError("Constants must be precomputed first.")
-
+    if (
+        not isinstance(ct.moduli, jax.core.Tracer)
+        and not isinstance(pt.moduli, jax.core.Tracer)
+        and ct.moduli.tolist() != pt.moduli.tolist()
+    ):
+      raise ValueError("Moduli of ciphertext and plaintext must match.")
     # Cast to uint64 to prevent overflow during multiplication
     prod = ct.data.astype(jnp.uint64) * pt.data.astype(jnp.uint64)
     # Barrett reduction expects z and constants.
     # constants.m, constants.moduli, etc. have shape (num_moduli,)
     # prod has shape (num_elements, degree, num_moduli)
-    # JAX will broadcast constants to match prod shape during operations
-    # in modular_reduction.
+    # JAX broadcasts constants to match prod shape in modular_reduction.
     reduced = barrett.modular_reduction(prod, self.barrett_constants)
     # Cast back to uint32 explicitly
     return types.Ciphertext(

@@ -364,7 +364,7 @@ class BATKeySwitcher:
 
     ct_out = types.Ciphertext(data=reduced, moduli=c0_lifted.moduli)
 
-    self.rescale_kernel.rescale(ct_out)
+    ct_out = self.rescale_kernel.rescale(ct_out)
     return ct_out
 
   def _matvec_product(

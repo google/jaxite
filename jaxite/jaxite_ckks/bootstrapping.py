@@ -1,6 +1,8 @@
 """SHIP CKKS half-bootstrapping implementation."""
 
 import dataclasses
+from typing import Any
+
 import jax
 import jax.numpy as jnp
 from jaxite.jaxite_ckks import add
@@ -9,6 +11,7 @@ from jaxite.jaxite_ckks import blind_rotate
 from jaxite.jaxite_ckks import bootstrapping_utils as boot_utils
 from jaxite.jaxite_ckks import conjugate
 from jaxite.jaxite_ckks import key_gen
+from jaxite.jaxite_ckks import key_switching
 from jaxite.jaxite_ckks import mul
 from jaxite.jaxite_ckks import ntt
 from jaxite.jaxite_ckks import ntt_cpu
@@ -53,44 +56,63 @@ class SHIPLevelKernels:
     )
 
 
+def _multiply_and_relinearize_and_rescale(
+    ct1: types.Ciphertext,
+    ct2: types.Ciphertext,
+    level_kernels: Any,
+) -> types.Ciphertext:
+  ct_3elem = level_kernels.mul_cc.tensor_multiply(ct1, ct2)
+  ct_mul = level_kernels.mul_cc.relinearize(ct_3elem, level_kernels.relk)
+  ct_mul = level_kernels.rescale_lvl.rescale(ct_mul)
+  return ct_mul
+
+
 @jax.tree_util.register_pytree_node_class
 class SHIP:
   """Kernel for SHIP CKKS half-bootstrapping."""
 
-  r: int = 0
-  c: int = 0
-  degree: int = 0
-  num_slots: int = 0
-  ntt_q0: ntt.NTTBarrett = ntt.NTTBarrett()
-  ntt_q: ntt.NTTBarrett = ntt.NTTBarrett()
-  ntt_pq: ntt.NTTBarrett = ntt.NTTBarrett()
-  ntt_p: ntt.NTTBarrett = ntt.NTTBarrett()
-  tree_kernels: list[SHIPLevelKernels] = []
-  conjugate_kernel: conjugate.Conjugation = conjugate.Conjugation()
-  conj_bc_kernel: basis_conversion.BasisConversionBarrett = (
-      basis_conversion.BasisConversionBarrett()
-  )
-  mul_kernel_lvl: mul.MulPlaintextCiphertextBarrett = (
-      mul.MulPlaintextCiphertextBarrett()
-  )
-  rescale_kernel_lvl: rescale.Rescale = rescale.Rescale()
-  add_kernel: add.AddModularSubtract = add.AddModularSubtract()
-  mul_pt_ct_kernel_q: mul.MulPlaintextCiphertextBarrett = (
-      mul.MulPlaintextCiphertextBarrett()
-  )
-  final_mul_pt_ct: mul.MulPlaintextCiphertextBarrett = (
-      mul.MulPlaintextCiphertextBarrett()
-  )
-  final_rescale: rescale.Rescale = rescale.Rescale()
-  final_ntt: ntt.NTTBarrett = ntt.NTTBarrett()
-  brot_kernel: blind_rotate.BlindRotation = blind_rotate.BlindRotation()
-  online_encoder: boot_utils.OnlineEncoder = boot_utils.OnlineEncoder()
-  nonzero_idx: jax.Array = np.array([], dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
-  cmkeys: list[list[list[types.Ciphertext]]] = []
-  mmkeys: list[types.MuxRotationKey] = []
-  conjk: types.EvaluationKeys = types.EvaluationKeys()
-  dnum: int = 0
-  dnum_conj: int = 0
+  def __init__(self):
+    self.r: int = 0
+    self.c: int = 0
+    self.degree: int = 0
+    self.num_slots: int = 0
+    self.ntt_q0: ntt.NTTBarrett = ntt.NTTBarrett()
+    self.ntt_q: ntt.NTTBarrett = ntt.NTTBarrett()
+    self.ntt_pq: ntt.NTTBarrett = ntt.NTTBarrett()
+    self.ntt_p: ntt.NTTBarrett = ntt.NTTBarrett()
+    self.tree_kernels: list[SHIPLevelKernels] = []
+    self.conjugate_kernel: conjugate.Conjugation = conjugate.Conjugation()
+    self.conj_bc_kernel: basis_conversion.BasisConversionBarrett = (
+        basis_conversion.BasisConversionBarrett()
+    )
+    self.mul_kernel_lvl: mul.MulPlaintextCiphertextBarrett = (
+        mul.MulPlaintextCiphertextBarrett()
+    )
+    self.rescale_kernel_lvl: rescale.Rescale = rescale.Rescale()
+    self.add_kernel: add.AddModularSubtract = add.AddModularSubtract()
+    self.mul_pt_ct_kernel_q: mul.MulPlaintextCiphertextBarrett = (
+        mul.MulPlaintextCiphertextBarrett()
+    )
+    self.final_mul_pt_ct: mul.MulPlaintextCiphertextBarrett = (
+        mul.MulPlaintextCiphertextBarrett()
+    )
+    self.final_rescale: rescale.Rescale = rescale.Rescale()
+    self.final_ntt: ntt.NTTBarrett = ntt.NTTBarrett()
+    self.brot_kernel: blind_rotate.BlindRotation = blind_rotate.BlindRotation()
+    self.online_encoder: boot_utils.OnlineEncoder = boot_utils.OnlineEncoder()
+    self.nonzero_idx: jax.Array = np.array([], dtype=np.uint32)  # pyrefly: ignore[bad-assignment]
+
+    self.batched_cmkeys: types.Ciphertext = types.Ciphertext(
+        jnp.empty((0,)), jnp.empty((0,))
+    )
+    self.batched_mmkeys: list[tuple[jax.Array, jax.Array]] = []
+    self.bat_switcher: key_switching.BATKeySwitcher = (
+        key_switching.BATKeySwitcher()
+    )
+    self.mmkeys_permutations: list[Any] = []
+    self.conjk: types.EvaluationKeys = types.EvaluationKeys()
+    self.dnum: int = 0
+    self.dnum_conj: int = 0
 
   def tree_flatten(self):
     """Flattens the kernel into a JAX pytree."""
@@ -111,8 +133,10 @@ class SHIP:
         self.final_ntt,
         self.brot_kernel,
         self.nonzero_idx,
-        self.cmkeys,
-        self.mmkeys,
+        self.batched_cmkeys,
+        self.batched_mmkeys,
+        self.bat_switcher,
+        self.mmkeys_permutations,
         self.conjk,
         self.online_encoder,
     )
@@ -147,8 +171,10 @@ class SHIP:
         obj.final_ntt,
         obj.brot_kernel,
         obj.nonzero_idx,
-        obj.cmkeys,
-        obj.mmkeys,
+        obj.batched_cmkeys,
+        obj.batched_mmkeys,
+        obj.bat_switcher,
+        obj.mmkeys_permutations,
         obj.conjk,
         obj.online_encoder,
     ) = children
@@ -194,7 +220,6 @@ class SHIP:
     s_coeffs_flat = s_coeffs.flatten()
     nonzero_idx = np.flatnonzero(s_coeffs_flat).tolist()
     h = len(nonzero_idx)
-
     pq_limbs = q_limbs + p_limbs
     q0_limbs = [q_limbs[0]]
 
@@ -270,7 +295,7 @@ class SHIP:
     # Precompute Homomorphic Conjugation and final summation constants
     # curr_moduli is the moduli of the final ciphertext ct_out
     self.dnum = dnum
-    self.dnum_conj = min(dnum, len(curr_moduli))
+    self.dnum_conj = 1
 
     conj_moduli = curr_moduli + p_limbs
     conj_control_indices = mul.Mul.compute_control_indices(
@@ -323,20 +348,6 @@ class SHIP:
     self.brot_kernel.ntt_q = self.ntt_q
     self.brot_kernel.ntt_p = self.ntt_p
 
-    # Wire key_switcher manually to share NTT kernels
-    self.brot_kernel.key_switcher.ntt_kernels_q = [self.ntt_q]
-    self.brot_kernel.key_switcher.ntt_kernels_out = [self.ntt_p]
-    p_mod_q_val = [1] * len(q_limbs)
-    for i, q in enumerate(q_limbs):
-      for p in p_limbs:
-        p_mod_q_val[i] = (p_mod_q_val[i] * (p % q)) % q
-    self.brot_kernel.key_switcher.p_mod_q = jnp.array(
-        p_mod_q_val, dtype=jnp.uint64
-    )
-    self.brot_kernel.key_switcher.p_limbs = jnp.array(p_limbs, dtype=jnp.uint32)
-    self.brot_kernel.key_switcher.bc_kernel = self.brot_kernel.bc_kernel
-    self.brot_kernel.key_switcher.mul_kernel = self.brot_kernel.mul_kernel
-
     num_q_conj = len(curr_moduli)
     sk_sliced = types.SecretKey(sk.data[:, :num_q_conj], sk.moduli[:num_q_conj])
     self.conjk = key_gen.gen_conjugate_key(
@@ -346,17 +357,23 @@ class SHIP:
         dnum=self.dnum_conj,
         random_source=random_source,
     )
+    conj_key1 = key_gen.gen_key1(
+        sk=sk_sliced,
+        q_limbs=curr_moduli,
+        p_limbs=p_limbs,
+        random_source=random_source,
+    )
 
     self.conjugate_kernel.precompute_constants(
         q_limbs=curr_moduli,
         p_limbs=p_limbs,
-        dnum=self.dnum_conj,
         r=r,
         c=c,
         bc_kernel=self.conj_bc_kernel,
         mul_kernel=self.mul_kernel_lvl,
         rescale_kernel=self.rescale_kernel_lvl,
         conj_key=self.conjk,
+        key1=conj_key1,
         start_control_index=1,
     )
 
@@ -376,8 +393,52 @@ class SHIP:
       )
       cmkeys_list.append(cmkey_j)
       mmkeys_list.append(mmkey_j)
-    self.cmkeys = cmkeys_list
-    self.mmkeys = mmkeys_list
+    self.mmkeys_permutations = mmkeys_list[0].permutations
+
+    # Initialize and precompute BAT switcher
+    self.bat_switcher = key_switching.BATKeySwitcher()
+    self.bat_switcher.precompute_constants(
+        q_limbs=q_limbs,
+        p_limbs=p_limbs,
+        r=r,
+        c=c,
+        bc_kernel=self.brot_kernel.bc_kernel,
+        mul_kernel=self.brot_kernel.mul_kernel,
+        rescale_kernel=self.brot_kernel.rescale_kernel,
+    )
+    self.brot_kernel.bat_switcher = self.bat_switcher
+
+    # Transform Mux keys to BAT format
+    mmkeys_temp = []
+    for mmkey in mmkeys_list:
+      mmkey_bat_keys = []
+      for hmrkey0, hmrkey1 in mmkey.keys:
+        # Transform key0
+        ksk0 = types.EvaluationKeys(
+            a=hmrkey0.key0.data[1:2],
+            b=hmrkey0.key0.data[0:1],
+            moduli=hmrkey0.key0.moduli,
+        )
+        bat_key0 = self.bat_switcher.transform_key_to_bat(ksk0, hmrkey0.key1)
+
+        # Transform key1
+        ksk1 = types.EvaluationKeys(
+            a=hmrkey1.key0.data[1:2],
+            b=hmrkey1.key0.data[0:1],
+            moduli=hmrkey1.key0.moduli,
+        )
+        bat_key1 = self.bat_switcher.transform_key_to_bat(ksk1, hmrkey1.key1)
+
+        mmkey_bat_keys.append((bat_key0, bat_key1))
+      mmkeys_temp.append(mmkey_bat_keys)
+
+    # Stack the keys once and store them
+    self.batched_cmkeys = jax.tree.map(
+        lambda *args: jnp.stack(args), *cmkeys_list
+    )
+    self.batched_mmkeys = jax.tree.map(
+        lambda *args: jnp.stack(args), *mmkeys_temp
+    )
 
   def half_bootstrap(
       self,
@@ -389,153 +450,140 @@ class SHIP:
     """Executes the SHIP (half) bootstrapping algorithm."""
     q0 = ct_in.moduli[0]
 
-    # --- Step 1: INTT of b to get coefficients ---
-    b_ntt = ct_in.data[0]
-    b_reshaped = b_ntt.reshape(1, self.r, self.c, 1)
-    b_coeffs = self.ntt_q0.intt(b_reshaped.astype(jnp.uint32))
-    b_coeffs_flat = b_coeffs.reshape(self.degree)
+    # --- Step 1 & 2: Batched INTT of b and a to get coefficients ---
+    ab_reshaped = ct_in.data.reshape(2, self.r, self.c, 1)
+    ab_coeffs = self.ntt_q0.intt(ab_reshaped.astype(jnp.uint32))
+    b_coeffs_flat = ab_coeffs[0].reshape(self.degree)
+    a_coeffs_flat = ab_coeffs[1].reshape(self.degree)
 
-    # --- Step 2: INTT of a to get coefficients ---
-    a_ntt = ct_in.data[1]
-    a_reshaped = a_ntt.reshape(1, self.r, self.c, 1)
-    a_coeffs = self.ntt_q0.intt(a_reshaped.astype(jnp.uint32))
-    a_coeffs_flat = a_coeffs.reshape(self.degree)
-
-    # --- Step 3: Plaintext Preprocessing and Encoding ---
-
-    # Algorithm 1, Step 1: pt0 <- Ecd( 1/(4*pi) * gamma * b_i )
-    # Compute roots of unity modulo q0 using exact uint32 exponents.
+    # --- Step 3: Plaintext Preprocessing and Batched Encoding ---
     v0_slots = boot_utils.compute_v0_slots(
         b_coeffs_flat=b_coeffs_flat,
         q0=q0,
         num_slots=self.num_slots,
         gamma=gamma,
     )
-
-    # Algorithm 1, Steps 2-3: Encoding pt1..pt4 for the hybrid blind rotation
     w1_a_slots, w2_a_slots = boot_utils.compute_a_slots(
         a_lower=a_coeffs_flat[: self.num_slots],
         a_upper=a_coeffs_flat[self.num_slots :],
         q0=q0,
     )
 
-    # NOTE: pt0 (Algorithm 1, step 1) is computed later, after the product tree.
-
-    # Algorithm 1, Step 2: pt1 <- Ecd( w * a_i ) (first half); pt2 <- pt1(X^-1)
     moduli_pq = jnp.array(self.ntt_pq.constants.moduli, dtype=jnp.uint32)
-    pt1 = self.online_encoder.encode(
+    all_a_slots = jnp.stack([
         w1_a_slots,
-        scale,
-        moduli_pq,
-        self.ntt_pq,
-    )
-    pt2 = self.online_encoder.encode(
         jnp.conj(w1_a_slots),
-        scale,
-        moduli_pq,
-        self.ntt_pq,
-    )
-    # Algorithm 1, Step 3: pt3 <- Ecd( w * a_i ) (second half); pt4 <- pt3(X^-1)
-    pt3 = self.online_encoder.encode(w2_a_slots, scale, moduli_pq, self.ntt_pq)
-    pt4 = self.online_encoder.encode(
+        w2_a_slots,
         jnp.conj(w2_a_slots),
-        scale,
-        moduli_pq,
-        self.ntt_pq,
+    ])
+    pts_batched = jax.vmap(
+        lambda s: self.online_encoder.encode(s, scale, moduli_pq, self.ntt_pq)
+    )(all_a_slots)
+    pts_tuple = tuple(
+        types.Plaintext(data=pts_batched.data[i], moduli=pts_batched.moduli[i])
+        for i in range(4)
     )
 
-    # Stack the list of cmkeys and mmkeys to create batched PyTrees
-    batched_cmkeys = jax.tree.map(lambda *args: jnp.stack(args), *self.cmkeys)
-    batched_mmkeys = jax.tree.map(lambda *args: jnp.stack(args), *self.mmkeys)
-
-    # Vectorized execution over the batch of keys
     vmapped_brot = jax.vmap(
         lambda cmkey, mmkey: self.brot_kernel.brot_hybrid(
-            pts=(pt1, pt2, pt3, pt4),
+            pts=pts_tuple,
             cmkey_hybrid=cmkey,
-            mmkey_hybrid=mmkey,
+            mmkey_hybrid_bat=mmkey,
+            permutations=self.mmkeys_permutations,
             theta=theta,
             control_index=2,
         ),
         in_axes=(0, 0),
     )
-    ct_rot_batched = vmapped_brot(batched_cmkeys, batched_mmkeys)
+    ct_rot_batched = vmapped_brot(self.batched_cmkeys, self.batched_mmkeys)
 
-    # Un-batch the results back into a list of Ciphertexts for the binary
-    # product tree.
-    ct_list = [
-        types.Ciphertext(
-            data=ct_rot_batched.data[i], moduli=ct_rot_batched.moduli[i]
-        )
-        for i in range(len(self.cmkeys))
-    ]
+    # ct_rot_batched is already batched: data shape (n, 2, degree, num_moduli)
+    ct_current = ct_rot_batched
+    n = ct_current.data.shape[0]
+    current_scale = scale
 
     # --- Step 5: Binary Product Tree Multiplication ---
     # The product tree reduces the rotated ciphertexts.
-    nodes = list(ct_list)
-    n = len(nodes)
-    node_scales = [scale] * n
-
-    # Algorithm 1, Steps 12-21: Product Tree loop
     for k in range(len(self.tree_kernels)):
       level_kernels = self.tree_kernels[k]
-      next_nodes = []
-      next_scales = []
 
-      # Algorithm 1, Step 14: Loop over nodes
-      for j in range(n // 2):
-        n1 = nodes[2 * j]
-        n2 = nodes[2 * j + 1]
-        s1 = node_scales[2 * j]
-        s2 = node_scales[2 * j + 1]
+      has_odd = n % 2 == 1
 
-        # Algorithm 1, Step 15: ct <- CMult(ct_2j, ct_{2j+1})
-        # Homomorphic Ciphertext-Ciphertext multiplication
-        ct_3elem = level_kernels.mul_cc.tensor_multiply(n1, n2)
-        ct_mul = level_kernels.mul_cc.relinearize(ct_3elem, level_kernels.relk)
-        # Rescale
-        level_kernels.rescale_lvl.rescale(ct_mul)
-        next_nodes.append(ct_mul)
+      limit = n - 1 if has_odd else n
 
-        assert level_kernels.rescale_lvl.moduli is not None
-        q_dropped = level_kernels.rescale_lvl.moduli[-1]
-        s_out = (s1 * s2) / q_dropped
-        next_scales.append(s_out)
+      # Reshaping instead of step-slicing (which crashes XLA on TPU)
+      data_limited = ct_current.data[:limit]
+      moduli_limited = ct_current.moduli[:limit]
 
-      if n % 2 == 1:
-        # Drop the last modulus of the propagated odd node to match the
-        # rescaled level of the other nodes.
-        # We multiply the ciphertext by the scalar `scale` to match the scale
-        # of the multiplied nodes, and then rescale it.
-        ct_odd = nodes[-1]
-        s_odd = node_scales[-1]
+      data_reshaped = jnp.reshape(
+          data_limited, (limit // 2, 2) + data_limited.shape[1:]
+      )
+      moduli_reshaped = jnp.reshape(
+          moduli_limited, (limit // 2, 2) + moduli_limited.shape[1:]
+      )
+
+      data_a = data_reshaped[:, 0]
+      data_b = data_reshaped[:, 1]
+      moduli_a = moduli_reshaped[:, 0]
+      moduli_b = moduli_reshaped[:, 1]
+
+      ct_a = types.Ciphertext(data=data_a, moduli=moduli_a)
+      ct_b = types.Ciphertext(data=data_b, moduli=moduli_b)
+
+      vmapped_mul = jax.vmap(
+          lambda c1, c2: _multiply_and_relinearize_and_rescale(
+              c1, c2, level_kernels
+          ),
+          in_axes=(0, 0),
+      )
+
+      ct_mul_batched = vmapped_mul(ct_a, ct_b)
+
+      if has_odd:
+        # Extract odd node
+        ct_odd = types.Ciphertext(
+            data=ct_current.data[-1], moduli=ct_current.moduli[-1]
+        )
+        # Rescale odd node
         scaled_data = (
             (
                 ct_odd.data.astype(jnp.uint64)
-                * jnp.round(s_odd).astype(jnp.uint64)
+                * jnp.round(current_scale).astype(jnp.uint64)
             )
             % ct_odd.moduli.astype(jnp.uint64)
         ).astype(jnp.uint32)
-        ct_odd_mul = types.Ciphertext(data=scaled_data, moduli=ct_odd.moduli)
-        level_kernels.rescale_lvl.rescale(ct_odd_mul)
-        next_nodes.append(ct_odd_mul)
+        ct_odd_rescaled = types.Ciphertext(
+            data=scaled_data, moduli=ct_odd.moduli
+        )
+        ct_odd_rescaled = level_kernels.rescale_lvl.rescale(ct_odd_rescaled)
 
-        assert level_kernels.rescale_lvl.moduli is not None
-        q_dropped = level_kernels.rescale_lvl.moduli[-1]
-        s_out = (s_odd * s_odd) / q_dropped
-        next_scales.append(s_out)
+        # Concatenate rescaled odd node
+        ct_odd_data_expanded = jnp.expand_dims(ct_odd_rescaled.data, axis=0)
+        ct_odd_moduli_expanded = jnp.expand_dims(ct_odd_rescaled.moduli, axis=0)
 
-      # Algorithm 1, Step 20: n <- ceil(n / 2)
-      nodes = next_nodes
-      node_scales = next_scales
-      n = len(nodes)
+        new_data = jnp.concatenate(
+            [ct_mul_batched.data, ct_odd_data_expanded], axis=0
+        )
+        new_moduli = jnp.concatenate(
+            [ct_mul_batched.moduli, ct_odd_moduli_expanded], axis=0
+        )
+        ct_current = types.Ciphertext(data=new_data, moduli=new_moduli)
+      else:
+        ct_current = ct_mul_batched
 
-    ct_prod = nodes[0]
-    ct_prod_scale = node_scales[0]
+      assert level_kernels.rescale_lvl.moduli is not None
+      q_dropped = level_kernels.rescale_lvl.moduli[-1]
+      current_scale = (current_scale**2) / q_dropped
+      n = ct_current.data.shape[0]
+
+    ct_prod = types.Ciphertext(
+        data=ct_current.data[0], moduli=ct_current.moduli[0]
+    )
+    ct_prod_scale = current_scale
     q_final_dropped = ct_prod.moduli[-1]
     scale_pt0 = (q_final_dropped * scale) / ct_prod_scale
-
     # Perform the final Plaintext-Ciphertext multiplication with pt0.
+
     pt0 = self.online_encoder.encode(
         slots=v0_slots,
         scale=scale_pt0,
@@ -544,7 +592,7 @@ class SHIP:
     )
 
     ct_out = self.final_mul_pt_ct.mul(ct_prod, pt0)
-    self.final_rescale.rescale(ct_out)
+    ct_out = self.final_rescale.rescale(ct_out)
 
     # --- Step 6: Conjugation and Final Addition ---
     # Algorithm 1, Step 22: return ct0 + Conj(ct0)
