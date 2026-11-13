@@ -2,7 +2,8 @@
 
 load("@jaxite//bazel:test_oss.bzl", "cpu_gpu_tpu_test", "gpu_tpu_test", "multichip_tpu_test", "tpu_test")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_python//python:defs.bzl", "py_library", "py_test")
+load("@rules_python//python:defs.bzl", "py_test")
+load("//third_party/bazel_rules/rules_python/python:py_library.bzl", "py_library")
 
 package(
     default_applicable_licenses = [":license"],
@@ -33,6 +34,7 @@ py_library(
             "**/*_test.py",
         ],
     ),
+    type_checking = True,
     deps = [
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
@@ -49,6 +51,7 @@ py_library(
             "jaxite/jaxite_cggi/test_utils.py",
         ],
     ),
+    type_checking = True,
     deps = [
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
@@ -79,6 +82,7 @@ py_library(
         ["jaxite/jaxite_bool/*.py"],
         exclude = ["**/*_test.py"],
     ),
+    type_checking = True,
     deps = [
         ":jaxite_cggi",
         "@jaxite_deps//jax",
@@ -100,6 +104,7 @@ py_library(
         "jaxite_ec/configurations.toml",
         # "@jaxite//jaxite_ec/c_kernels:distribution.so",
     ],
+    type_checking = True,
     visibility = [":internal"],
     deps = [
         # copybara: xprof_analysis_client  # buildcleaner: keep
@@ -119,6 +124,7 @@ py_library(
 py_library(
     name = "test_utils",
     srcs = ["jaxite/jaxite_cggi/test_utils.py"],
+    type_checking = True,
     deps = [
         ":jaxite_bool",
         ":jaxite_cggi",
