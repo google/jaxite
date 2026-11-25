@@ -33,6 +33,7 @@ py_library(
             "**/*_test.py",
         ],
     ),
+    # type_checking = True,
     deps = [
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
@@ -49,6 +50,7 @@ py_library(
             "jaxite/jaxite_cggi/test_utils.py",
         ],
     ),
+    # type_checking = True,
     deps = [
         "@jaxite_deps//jax",
         "@jaxite_deps//jaxlib",
@@ -79,6 +81,7 @@ py_library(
         ["jaxite/jaxite_bool/*.py"],
         exclude = ["**/*_test.py"],
     ),
+    # type_checking = True,
     deps = [
         ":jaxite_cggi",
         "@jaxite_deps//jax",
@@ -100,6 +103,7 @@ py_library(
         "jaxite_ec/configurations.toml",
         # "@jaxite//jaxite_ec/c_kernels:distribution.so",
     ],
+    # type_checking = True,
     visibility = [":internal"],
     deps = [
         # copybara: xprof_analysis_client  # buildcleaner: keep
@@ -119,6 +123,7 @@ py_library(
 py_library(
     name = "test_utils",
     srcs = ["jaxite/jaxite_cggi/test_utils.py"],
+    # type_checking = True,
     deps = [
         ":jaxite_bool",
         ":jaxite_cggi",
